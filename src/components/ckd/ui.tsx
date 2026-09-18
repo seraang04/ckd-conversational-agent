@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 
-export function AppHeader({ subtitle }: { subtitle?: string }) {
+export function AppHeader({ subtitle }: { subtitle?: string | undefined }) {
   return (
     <header className="flex items-center gap-3 border-b border-border px-5 py-4">
       <Link to="/" className="flex items-center gap-3">
