@@ -1,24 +1,64 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { ClipboardList, MessageCircle, Stethoscope } from "lucide-react";
 
-// No head() here: the home route inherits title/description/og/twitter from
-// __root.tsx, and ships no og:image so serve-time hosting can inject the
-// project's social preview (explicit og:image or latest screenshot).
+import { BigButton, Card, FooterNote, Page } from "@/components/ckd/ui";
+
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "谈谈我在意的事 · CKD values conversation" },
+      {
+        name: "description",
+        content:
+          "A calm, voice-led conversation that helps kidney patients and their caregivers say what matters to them before the next consultation.",
+      },
+      { property: "og:title", content: "谈谈我在意的事 · CKD values conversation" },
+      {
+        property: "og:description",
+        content:
+          "A calm, voice-led conversation that helps kidney patients and their caregivers say what matters to them before the next consultation.",
+      },
+    ],
+  }),
+  component: Home,
 });
 
-// IMPORTANT: Replace this placeholder. See ./README.md for routing conventions.
-function Index() {
+function Home() {
+  const navigate = useNavigate();
+
   return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
+    <Page>
+      <div className="space-y-6">
+        <div className="space-y-3">
+          <h1 className="text-4xl font-semibold leading-tight text-foreground">
+            在看诊之前，先谈谈您在意的事
+          </h1>
+          <p className="text-lg text-muted-foreground">
+            A calm conversation before the kidney consultation, so the discussion can start from what
+            matters to you.
+          </p>
+        </div>
+
+        <Card className="space-y-4">
+          <BigButton onClick={() => void navigate({ to: "/session" })}>
+            <span className="flex items-center justify-center gap-3">
+              <MessageCircle className="h-6 w-6" /> 继续对话 · Continue a session
+            </span>
+          </BigButton>
+          <BigButton variant="ghost" onClick={() => void navigate({ to: "/setup" })}>
+            <span className="flex items-center justify-center gap-3">
+              <ClipboardList className="h-6 w-6" /> 医生设置 · Clinician setup
+            </span>
+          </BigButton>
+          <BigButton variant="soft" onClick={() => void navigate({ to: "/coordinator" })}>
+            <span className="flex items-center justify-center gap-3">
+              <Stethoscope className="h-6 w-6" /> 协调员查看 · Coordinator view
+            </span>
+          </BigButton>
+        </Card>
+
+        <FooterNote />
+      </div>
+    </Page>
   );
 }

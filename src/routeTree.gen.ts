@@ -10,33 +10,128 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SetupRouteImport } from './routes/setup'
+import { Route as ApiSpeakRouteImport } from './routes/api/speak'
+import { Route as ApiTranscribeRouteImport } from './routes/api/transcribe'
+import { Route as CoordinatorIndexRouteImport } from './routes/coordinator.index'
+import { Route as CoordinatorCodeRouteImport } from './routes/coordinator.$code'
+import { Route as SessionIndexRouteImport } from './routes/session.index'
+import { Route as SessionCodeRouteImport } from './routes/session.$code'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSpeakRoute = ApiSpeakRouteImport.update({
+  id: '/api/speak',
+  path: '/api/speak',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTranscribeRoute = ApiTranscribeRouteImport.update({
+  id: '/api/transcribe',
+  path: '/api/transcribe',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CoordinatorIndexRoute = CoordinatorIndexRouteImport.update({
+  id: '/coordinator/',
+  path: '/coordinator/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CoordinatorCodeRoute = CoordinatorCodeRouteImport.update({
+  id: '/coordinator/$code',
+  path: '/coordinator/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionIndexRoute = SessionIndexRouteImport.update({
+  id: '/session/',
+  path: '/session/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SessionCodeRoute = SessionCodeRouteImport.update({
+  id: '/session/$code',
+  path: '/session/$code',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/setup': typeof SetupRoute
+  '/api/speak': typeof ApiSpeakRoute
+  '/api/transcribe': typeof ApiTranscribeRoute
+  '/coordinator/$code': typeof CoordinatorCodeRoute
+  '/session/$code': typeof SessionCodeRoute
+  '/coordinator/': typeof CoordinatorIndexRoute
+  '/session/': typeof SessionIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/setup': typeof SetupRoute
+  '/api/speak': typeof ApiSpeakRoute
+  '/api/transcribe': typeof ApiTranscribeRoute
+  '/coordinator/$code': typeof CoordinatorCodeRoute
+  '/session/$code': typeof SessionCodeRoute
+  '/coordinator': typeof CoordinatorIndexRoute
+  '/session': typeof SessionIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/setup': typeof SetupRoute
+  '/api/speak': typeof ApiSpeakRoute
+  '/api/transcribe': typeof ApiTranscribeRoute
+  '/coordinator/$code': typeof CoordinatorCodeRoute
+  '/session/$code': typeof SessionCodeRoute
+  '/coordinator/': typeof CoordinatorIndexRoute
+  '/session/': typeof SessionIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/setup'
+    | '/api/speak'
+    | '/api/transcribe'
+    | '/coordinator/$code'
+    | '/session/$code'
+    | '/coordinator/'
+    | '/session/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/setup'
+    | '/api/speak'
+    | '/api/transcribe'
+    | '/coordinator/$code'
+    | '/session/$code'
+    | '/coordinator'
+    | '/session'
+  id:
+    | '__root__'
+    | '/'
+    | '/setup'
+    | '/api/speak'
+    | '/api/transcribe'
+    | '/coordinator/$code'
+    | '/session/$code'
+    | '/coordinator/'
+    | '/session/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  SetupRoute: typeof SetupRoute
+  ApiSpeakRoute: typeof ApiSpeakRoute
+  ApiTranscribeRoute: typeof ApiTranscribeRoute
+  CoordinatorCodeRoute: typeof CoordinatorCodeRoute
+  SessionCodeRoute: typeof SessionCodeRoute
+  CoordinatorIndexRoute: typeof CoordinatorIndexRoute
+  SessionIndexRoute: typeof SessionIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +143,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/speak': {
+      id: '/api/speak'
+      path: '/api/speak'
+      fullPath: '/api/speak'
+      preLoaderRoute: typeof ApiSpeakRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/transcribe': {
+      id: '/api/transcribe'
+      path: '/api/transcribe'
+      fullPath: '/api/transcribe'
+      preLoaderRoute: typeof ApiTranscribeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/coordinator/': {
+      id: '/coordinator/'
+      path: '/coordinator'
+      fullPath: '/coordinator/'
+      preLoaderRoute: typeof CoordinatorIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/coordinator/$code': {
+      id: '/coordinator/$code'
+      path: '/coordinator/$code'
+      fullPath: '/coordinator/$code'
+      preLoaderRoute: typeof CoordinatorCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/session/': {
+      id: '/session/'
+      path: '/session'
+      fullPath: '/session/'
+      preLoaderRoute: typeof SessionIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/session/$code': {
+      id: '/session/$code'
+      path: '/session/$code'
+      fullPath: '/session/$code'
+      preLoaderRoute: typeof SessionCodeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SetupRoute: SetupRoute,
+  ApiSpeakRoute: ApiSpeakRoute,
+  ApiTranscribeRoute: ApiTranscribeRoute,
+  CoordinatorCodeRoute: CoordinatorCodeRoute,
+  SessionCodeRoute: SessionCodeRoute,
+  CoordinatorIndexRoute: CoordinatorIndexRoute,
+  SessionIndexRoute: SessionIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
