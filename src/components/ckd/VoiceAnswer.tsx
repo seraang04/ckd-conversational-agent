@@ -1,3 +1,4 @@
+import { useText, translatedText } from "@/lib/language";
 import { Loader2, Mic, Pencil, Square, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -31,6 +32,8 @@ export function VoiceAnswer({
   busy,
   reflection,
 }: Props) {
+  const t = useText(dialect);
+  const spokenQuestion = dialect === "en" ? questionEn : questionZh;
   const [draft, setDraft] = useState("");
   const [recording, setRecording] = useState(false);
   const [working, setWorking] = useState(false);
@@ -43,9 +46,9 @@ export function VoiceAnswer({
     setDraft("");
     setTyping(false);
     setError(null);
-    void speak(questionZh, dialect);
+    void speak(spokenQuestion, dialect);
     return () => stopSpeaking();
-  }, [questionZh, dialect]);
+  }, [spokenQuestion, dialect]);
 
   const begin = useCallback(async () => {
     setError(null);
@@ -54,10 +57,15 @@ export function VoiceAnswer({
       recorderRef.current = await startRecording(setLevel);
       setRecording(true);
     } catch {
-      setError("没办法使用麦克风。请允许麦克风权限，或用打字。 · Microphone unavailable — allow access or type instead.");
+      setError(
+        t(
+          "没办法使用麦克风。请允许麦克风权限，或用打字。",
+          "Microphone unavailable — allow access or type instead.",
+        ),
+      );
       setTyping(true);
     }
-  }, []);
+  }, [t]);
 
   const finish = useCallback(async () => {
     const recorder = recorderRef.current;
@@ -67,20 +75,23 @@ export function VoiceAnswer({
     recorderRef.current = null;
     try {
       const blob = await recorder.stop();
-      const text = await transcribe(blob, "zh");
+      const text = await transcribe(blob, dialect === "en" ? "en" : "zh");
       if (!text) throw new Error("empty_recording");
       setDraft((prev) => (prev ? `${prev} ${text}` : text));
     } catch (err) {
       setError(
         (err as Error).message === "empty_recording"
-          ? "没有听到声音，请再说一次。 · Nothing was heard — please try again."
-          : "刚刚没听清楚，请再说一次，或用打字。 · That didn't come through — try again or type it.",
+          ? t("没有听到声音，请再说一次。", "Nothing was heard — please try again.")
+          : t(
+              "刚刚没听清楚，请再说一次，或用打字。",
+              "That didn't come through — try again or type it.",
+            ),
       );
     } finally {
       setWorking(false);
       setLevel(0);
     }
-  }, []);
+  }, [dialect, t]);
 
   return (
     <Card className="space-y-6">
@@ -91,25 +102,25 @@ export function VoiceAnswer({
           onClick={() => onSpeakerChange(speaker === "patient" ? "caregiver" : "patient")}
           className="rounded-full border-2 border-border px-4 py-2 text-sm font-medium text-foreground"
         >
-          换人说话 · Switch speaker
+          {t("换人说话", "Switch speaker")}
         </button>
       </div>
 
       <div className="space-y-2">
-        <p className="text-3xl font-semibold leading-snug text-foreground">{questionZh}</p>
-        <p className="text-base text-muted-foreground">{questionEn}</p>
+        <p className="text-3xl font-semibold leading-snug text-foreground">{spokenQuestion}</p>
+
         <button
           type="button"
-          onClick={() => void speak(questionZh, dialect)}
+          onClick={() => void speak(spokenQuestion, dialect)}
           className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground"
         >
-          <Volume2 className="h-4 w-4" /> 再听一次 · Read aloud
+          <Volume2 className="h-4 w-4" /> {t("再听一次", "Read aloud")}
         </button>
       </div>
 
       {reflection ? (
         <div className="rounded-2xl bg-secondary p-4 text-base leading-relaxed text-secondary-foreground whitespace-pre-line">
-          {reflection}
+          {translatedText(reflection, dialect)}
         </div>
       ) : null}
 
@@ -137,7 +148,11 @@ export function VoiceAnswer({
               <Mic className="h-10 w-10" />
             )}
           </span>
-          {working ? "正在整理您的话…" : recording ? "说完了，按一下 · Tap when done" : "按住说话 · Tap to speak"}
+          {working
+            ? t("正在整理您的话…", "Transcribing…")
+            : recording
+              ? t("说完了，按一下", "Tap when done")
+              : t("按一下开始说话", "Tap to speak")}
         </button>
 
         {!typing ? (
@@ -146,7 +161,7 @@ export function VoiceAnswer({
             onClick={() => setTyping(true)}
             className="inline-flex items-center gap-2 text-base font-medium text-primary underline"
           >
-            <Pencil className="h-4 w-4" /> 帮他打字 · Type the answer instead
+            <Pencil className="h-4 w-4" /> {t("帮他打字", "Type the answer instead")}
           </button>
         ) : null}
       </div>
@@ -158,14 +173,17 @@ export function VoiceAnswer({
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           rows={5}
-          placeholder="在这里打字 · Type here"
+          placeholder={t("在这里打字", "Type here")}
           className={cn(inputClass, "text-xl leading-relaxed")}
         />
       ) : null}
 
       {draft.trim() ? (
-        <BigButton onClick={() => onSubmit(draft.trim(), typing ? "typed" : "voice")} disabled={busy}>
-          {busy ? "…" : "就是这样 · That's right"}
+        <BigButton
+          onClick={() => onSubmit(draft.trim(), typing ? "typed" : "voice")}
+          disabled={busy}
+        >
+          {busy ? "…" : t("就是这样", "That's right")}
         </BigButton>
       ) : null}
 
@@ -175,14 +193,14 @@ export function VoiceAnswer({
           onClick={onSkip}
           className="rounded-full border-2 border-border px-4 py-3 text-sm font-medium"
         >
-          跳过这题 · Skip
+          {t("跳过这题", "Skip")}
         </button>
         <button
           type="button"
           onClick={onDefer}
           className="rounded-full border-2 border-border px-4 py-3 text-sm font-medium"
         >
-          留给协调员谈 · Leave for the coordinator
+          {t("留给协调员谈", "Leave for the coordinator")}
         </button>
       </div>
     </Card>

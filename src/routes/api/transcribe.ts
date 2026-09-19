@@ -23,8 +23,14 @@ export const Route = createFileRoute("/api/transcribe")({
         const upstream = new FormData();
         upstream.append("model", "openai/gpt-4o-transcribe");
         upstream.append("file", file, "recording.wav");
-        // zh covers Mandarin; Hokkien speech is transcribed into Chinese characters.
+        // zh covers Mandarin; render Chinese transcripts in Simplified Chinese.
         if (language) upstream.append("language", language);
+        if (language === "zh") {
+          upstream.append(
+            "prompt",
+            "请使用简体中文记录语音内容，保留说话者的原意。不要使用繁体字。",
+          );
+        }
 
         const res = await fetch("https://ai.gateway.lovable.dev/v1/audio/transcriptions", {
           method: "POST",

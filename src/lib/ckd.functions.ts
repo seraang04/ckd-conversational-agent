@@ -92,7 +92,10 @@ export const buildSynthesis = createServerFn({ method: "POST" })
   .handler(async ({ data }): Promise<Synthesis> => {
     const { aiJson, GUARDRAILS } = await import("./ai.server");
     const transcript = data.entries
-      .map((e) => `[${e.speaker}${e.visibility === "private" ? " · private" : ""}] Q: ${e.question}\nA: ${e.answer}`)
+      .map(
+        (e) =>
+          `[${e.speaker}${e.visibility === "private" ? " · private" : ""}] Q: ${e.question}\nA: ${e.answer}`,
+      )
       .join("\n\n");
 
     const result = await aiJson<Synthesis>(
@@ -103,7 +106,7 @@ Organise the conversation into short bullet points. Keep the patient's own wordi
 - shared_concerns: worries both raised.
 - differing_concerns: where patient and caregiver see things differently.
 - flagged_topics: unresolved or sensitive topics, named as a topic only, no private content.
-Never merge patient and caregiver voices. Never suggest a treatment. Each bullet: Chinese, then " / " then short English.`,
+Never merge patient and caregiver voices. Never suggest a treatment. Each bullet: Simplified Chinese, then " / " then short English.`,
       `Deferred or private topics the patient chose to hand to the renal coordinator: ${
         data.deferredTopics.join(", ") || "none"
       }
