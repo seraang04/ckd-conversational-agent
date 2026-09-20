@@ -10,6 +10,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
   Check,
+  Download,
   EyeOff,
   House,
   Lock,
@@ -101,6 +102,7 @@ function SessionFlow() {
   });
 
   const [busy, setBusy] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [distress, setDistress] = useState(false);
 
   const distressCheck = useServerFn(checkDistress);
@@ -488,6 +490,42 @@ function SessionFlow() {
                   : t("摘要已保存，护理团队可以查看。", "Summary saved for your care team.")
                 : t("没有保存回答。", "No answers were saved.")}
             </p>
+            {summary?.confirmed && hasSummaryContent ? (
+              <BigButton
+                disabled={downloading}
+                onClick={async () => {
+                  setDownloading(true);
+                  try {
+                    const { downloadSummaryPdf } = await import("@/lib/summary-pdf");
+                    await downloadSummaryPdf(
+                      t("对话摘要", "Conversation summary"),
+                      SUMMARY_SECTIONS.map((section) => ({
+                        heading: t(section.zh, section.en),
+                        answers: (summary[section.key] ?? []).map((answer) =>
+                          translatedText(answer, language),
+                        ),
+                      })),
+                      language,
+                    );
+                  } catch {
+                    toast.error(
+                      t(
+                        "无法下载摘要，请重试。",
+                        "Could not download the summary. Please try again.",
+                      ),
+                    );
+                  } finally {
+                    setDownloading(false);
+                  }
+                }}
+                className="flex items-center justify-center gap-2"
+              >
+                <Download className="h-6 w-6 shrink-0" aria-hidden />
+                {downloading
+                  ? t("正在生成 PDF…", "Preparing PDF…")
+                  : t("下载摘要 (PDF)", "Download summary (PDF)")}
+              </BigButton>
+            ) : null}
             <Link to="/" className={cn(quietActionClass, "justify-center")}>
               {t("开始新对话", "Start another conversation")}
             </Link>
