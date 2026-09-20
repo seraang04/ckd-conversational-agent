@@ -1,4 +1,3 @@
-import { SPOKEN_PROMPTS } from "@/lib/ckd-script";
 import type { Language } from "@/lib/language";
 
 let current: HTMLAudioElement | null = null;
@@ -52,20 +51,19 @@ function browserSpeak(text: string, language: Language) {
   window.speechSynthesis.speak(utterance);
 }
 
-/** Generate approved question audio when it is requested. */
+/** Generate the displayed question audio when it is requested. */
 export async function speak(text: string, language: Language): Promise<void> {
   if (typeof window === "undefined" || !text.trim()) return;
   stopSpeaking();
   const requestGeneration = generation;
-  const prompt = SPOKEN_PROMPTS.find((item) => item[language] === text);
-  if (prompt) {
+  if (text.length <= 800) {
     const controller = new AbortController();
     currentRequest = controller;
     try {
       const res = await fetch("/api/speak", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ promptId: prompt.id, language }),
+        body: JSON.stringify({ text, language }),
         signal: controller.signal,
       });
       if (res.ok) {

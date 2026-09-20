@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { SPOKEN_PROMPTS } from "@/lib/ckd-script";
 
-type SpeakBody = { promptId?: string; language?: string };
+type SpeakBody = { text?: unknown; language?: unknown };
 
 const VOICE_INSTRUCTIONS = {
   en: "Speak in clear Singapore English with a light, natural local cadence. Sound warm, calm and conversational. Ask the question at an everyday pace. Do not add or change words.",
@@ -17,8 +16,10 @@ export const Route = createFileRoute("/api/speak")({
         if (language !== "en" && language !== "zh") {
           return Response.json({ error: "invalid_language" }, { status: 400 });
         }
-        const prompt = SPOKEN_PROMPTS.find((item) => item.id === body?.promptId);
-        if (!prompt) return Response.json({ error: "invalid_prompt" }, { status: 400 });
+        const spoken = typeof body?.text === "string" ? body.text.trim() : "";
+        if (!spoken || spoken.length > 800) {
+          return Response.json({ error: "invalid_text" }, { status: 400 });
+        }
 
         const openaiKey = process.env["OPENAI_API_KEY"];
         const lovableKey = process.env["LOVABLE_API_KEY"];
@@ -35,7 +36,7 @@ export const Route = createFileRoute("/api/speak")({
               headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
               body: JSON.stringify({
                 model: openaiKey ? "gpt-4o-mini-tts" : "openai/gpt-4o-mini-tts",
-                input: prompt[language],
+                input: spoken,
                 voice: language === "en" ? "coral" : "shimmer",
                 instructions: VOICE_INSTRUCTIONS[language],
                 response_format: "mp3",

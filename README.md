@@ -39,7 +39,7 @@ Local development blocks a remote Supabase URL by default. Set `VITE_ALLOW_REMOT
 
 ### Question audio
 
-The app generates each question's speech when it is opened or replayed. `/api/speak` accepts only question IDs from the fixed script, then sends the matching English or Mandarin text to `gpt-4o-mini-tts`. It does not send patient answers to text-to-speech or store generated MP3s in the repository. If the speech service or browser autoplay is unavailable, the patient can use **Hear question**; the app also tries the device voice. Review both languages' live voices before clinical use.
+The app generates each displayed question's speech when it is opened or replayed. `/api/speak` sends the English or Mandarin question text to `gpt-4o-mini-tts`; no MP3s are stored in the repository. A generated follow-up question may refer to something the patient said earlier, so its text may include patient information. Review this data flow and both languages' live voices before clinical use. If the speech service or browser autoplay is unavailable, the patient can use **Hear question**; the app also tries the device voice.
 
 ### Working with the Lovable project
 
