@@ -15,10 +15,11 @@ import {
   SpeakerBadge,
   inputClass,
 } from "@/components/ckd/ui";
+import { ConversationTurns } from "@/components/ckd/ConversationTurns";
 import { VoiceAnswer } from "@/components/ckd/VoiceAnswer";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchSessionBundle, type EntryRow, type SummaryRow } from "@/lib/ckd-db";
-import { PATIENT_FLOW, SCRIPT, type ScriptQuestion } from "@/lib/ckd-script";
+import { SCRIPT, type ScriptQuestion } from "@/lib/ckd-script";
 import {
   buildClinicianSummary,
   buildSynthesis,
@@ -55,8 +56,6 @@ export const Route = createFileRoute("/session/$code")({
 });
 
 const SENSITIVE_QUESTION = SCRIPT.find((q) => q.id === "sensitive-1")!;
-const CAREGIVER_QUESTIONS = SCRIPT.filter((q) => q.section === "caregiver");
-const PATIENT_QUESTIONS = SCRIPT.filter((q) => PATIENT_FLOW.includes(q.section));
 
 type SummaryKey = keyof Pick<
   SummaryRow,
@@ -105,10 +104,6 @@ function SessionFlow() {
     selectedLanguage === "en" ? "en" : selectedLanguage === "hokkien" ? "hokkien" : "zh";
 
   const t = useText(dialect);
-
-  const answered = useMemo(() => new Set(entries.map((e) => e.topic)), [entries]);
-  const nextPatientQuestion = PATIENT_QUESTIONS.find((q) => !answered.has(q.id)) ?? null;
-  const nextCaregiverQuestion = CAREGIVER_QUESTIONS.find((q) => !answered.has(q.id)) ?? null;
 
   const refresh = useCallback(async () => {
     await query.refetch();
@@ -195,6 +190,25 @@ function SessionFlow() {
     },
     [saveEntry, reflect, distressCheck, setStage, dialect],
   );
+
+  const saveConversationEntry = async (
+    question: ScriptQuestion,
+    answer: string,
+    mode: "voice" | "typed",
+    who: "patient" | "caregiver",
+    visibility: string,
+  ) => {
+    const saved = await saveEntry(question, answer, mode, who, visibility);
+    if (saved && !["skipped", "deferred"].includes(visibility)) {
+      try {
+        const result = await distressCheck({ data: { answer } });
+        if (result.distressed) setDistress(true);
+      } catch {
+        // A failed distress check must not cause the saved answer to be resubmitted.
+      }
+    }
+    return saved;
+  };
 
   if (query.isLoading) {
     return (
@@ -311,44 +325,16 @@ function SessionFlow() {
         ) : null}
 
         {session.stage === "explore" ? (
-          nextPatientQuestion ? (
-            <VoiceAnswer
-              key={nextPatientQuestion.id}
-              questionZh={nextPatientQuestion.zh}
-              questionEn={nextPatientQuestion.en}
-              dialect={dialect}
-              speaker={speaker}
-              onSpeakerChange={setSpeaker}
-              busy={busy}
-              reflection={reflection}
-              onSubmit={(answer, mode) =>
-                void handleAnswer(nextPatientQuestion, answer, mode, speaker, "shared")
-              }
-              onSkip={() =>
-                void saveEntry(nextPatientQuestion, "（跳过 skipped）", "typed", speaker, "skipped")
-              }
-              onDefer={() =>
-                void saveEntry(
-                  nextPatientQuestion,
-                  "（留给协调员 deferred to coordinator）",
-                  "typed",
-                  speaker,
-                  "deferred",
-                )
-              }
-            />
-          ) : (
-            <Card className="space-y-4">
-              <h2 className="text-2xl font-semibold text-foreground">{t("谢谢您", "Thank you")}</h2>
-              <p className="text-lg text-muted-foreground">
-                {t(
-                  "谢谢您。接下来还有一个较私人的话题，然后会问照顾您的人几个问题。",
-                  "Thank you. Next there is one more sensitive topic, and then a few questions for the person helping you.",
-                )}
-              </p>
-              <BigButton onClick={() => void setStage("gate")}>{t("继续", "Continue")}</BigButton>
-            </Card>
-          )
+          <ConversationTurns
+            sessionId={session.id}
+            scope="patient"
+            entries={entries}
+            dialect={dialect}
+            speaker={speaker}
+            onSpeakerChange={setSpeaker}
+            onSave={saveConversationEntry}
+            onComplete={() => void setStage("gate")}
+          />
         ) : null}
 
         {session.stage === "gate" ? (
@@ -425,68 +411,24 @@ function SessionFlow() {
         ) : null}
 
         {session.stage === "caregiver" ? (
-          nextCaregiverQuestion ? (
-            <div className="space-y-4">
-              <Notice>
-                {t(
-                  "这一段是问照顾者的，和病人的回答分开记录。",
-                  "This section is for the caregiver and is recorded separately from the patient's answers.",
-                )}
-              </Notice>
-              <VoiceAnswer
-                key={nextCaregiverQuestion.id}
-                questionZh={nextCaregiverQuestion.zh}
-                questionEn={nextCaregiverQuestion.en}
-                dialect={dialect}
-                speaker="caregiver"
-                onSpeakerChange={() => undefined}
-                busy={busy}
-                reflection={reflection}
-                onSubmit={(answer, mode) =>
-                  void handleAnswer(
-                    nextCaregiverQuestion,
-                    answer,
-                    mode,
-                    "caregiver",
-                    nextCaregiverQuestion.id === "caregiver-4" ? "private" : "shared",
-                  )
-                }
-                onSkip={() =>
-                  void saveEntry(
-                    nextCaregiverQuestion,
-                    "（跳过 skipped）",
-                    "typed",
-                    "caregiver",
-                    "skipped",
-                  )
-                }
-                onDefer={() =>
-                  void saveEntry(
-                    nextCaregiverQuestion,
-                    "（留给协调员 deferred to coordinator）",
-                    "typed",
-                    "caregiver",
-                    "deferred",
-                  )
-                }
-              />
-            </div>
-          ) : (
-            <Card className="space-y-4">
-              <h2 className="text-2xl font-semibold text-foreground">
-                {t("都问完了", "All questions are done")}
-              </h2>
-              <p className="text-lg text-muted-foreground">
-                {t(
-                  "问题都问完了。接下来会整理回答，请您确认。",
-                  "All questions are done. Next we put it together so the patient can check it.",
-                )}
-              </p>
-              <BigButton onClick={() => void setStage("synthesis")}>
-                {t("整理一下", "Put it together")}
-              </BigButton>
-            </Card>
-          )
+          <div className="space-y-4">
+            <Notice>
+              {t(
+                "这一段是问照顾者的，和病人的回答分开记录。",
+                "This section is for the caregiver and is recorded separately from the patient's answers.",
+              )}
+            </Notice>
+            <ConversationTurns
+              sessionId={session.id}
+              scope="caregiver"
+              entries={entries}
+              dialect={dialect}
+              speaker="caregiver"
+              onSpeakerChange={() => undefined}
+              onSave={saveConversationEntry}
+              onComplete={() => void setStage("synthesis")}
+            />
+          </div>
         ) : null}
 
         {session.stage === "synthesis" || session.stage === "confirm" ? (

@@ -34,6 +34,9 @@ export function VoiceAnswer({
 }: Props) {
   const t = useText(dialect);
   const spokenQuestion = dialect === "en" ? questionEn : questionZh;
+  const spokenTurn = reflection
+    ? `${translatedText(reflection, dialect)} ${spokenQuestion}`
+    : spokenQuestion;
   const [draft, setDraft] = useState("");
   const [recording, setRecording] = useState(false);
   const [working, setWorking] = useState(false);
@@ -46,9 +49,9 @@ export function VoiceAnswer({
     setDraft("");
     setTyping(false);
     setError(null);
-    void speak(spokenQuestion, dialect);
+    void speak(spokenTurn, dialect);
     return () => stopSpeaking();
-  }, [spokenQuestion, dialect]);
+  }, [spokenTurn, dialect]);
 
   const begin = useCallback(async () => {
     setError(null);
@@ -99,22 +102,11 @@ export function VoiceAnswer({
         <SpeakerBadge speaker={speaker} />
         <button
           type="button"
+          disabled={busy || recording || working}
           onClick={() => onSpeakerChange(speaker === "patient" ? "caregiver" : "patient")}
           className="rounded-full border-2 border-border px-4 py-2 text-sm font-medium text-foreground"
         >
           {t("换人说话", "Switch speaker")}
-        </button>
-      </div>
-
-      <div className="space-y-2">
-        <p className="text-3xl font-semibold leading-snug text-foreground">{spokenQuestion}</p>
-
-        <button
-          type="button"
-          onClick={() => void speak(spokenQuestion, dialect)}
-          className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground"
-        >
-          <Volume2 className="h-4 w-4" /> {t("再听一次", "Read aloud")}
         </button>
       </div>
 
@@ -123,6 +115,18 @@ export function VoiceAnswer({
           {translatedText(reflection, dialect)}
         </div>
       ) : null}
+
+      <div className="space-y-2">
+        <p className="text-3xl font-semibold leading-snug text-foreground">{spokenQuestion}</p>
+
+        <button
+          type="button"
+          onClick={() => void speak(spokenTurn, dialect)}
+          className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground"
+        >
+          <Volume2 className="h-4 w-4" /> {t("再听一次", "Read aloud")}
+        </button>
+      </div>
 
       <div className="space-y-3">
         <button
@@ -181,7 +185,7 @@ export function VoiceAnswer({
       {draft.trim() ? (
         <BigButton
           onClick={() => onSubmit(draft.trim(), typing ? "typed" : "voice")}
-          disabled={busy}
+          disabled={busy || recording || working}
         >
           {busy ? "…" : t("就是这样", "That's right")}
         </BigButton>
@@ -190,6 +194,7 @@ export function VoiceAnswer({
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
+          disabled={busy || recording || working}
           onClick={onSkip}
           className="rounded-full border-2 border-border px-4 py-3 text-sm font-medium"
         >
@@ -197,6 +202,7 @@ export function VoiceAnswer({
         </button>
         <button
           type="button"
+          disabled={busy || recording || working}
           onClick={onDefer}
           className="rounded-full border-2 border-border px-4 py-3 text-sm font-medium"
         >
