@@ -1,4 +1,4 @@
--- Demo-grade prototype: sessions are reached by short code, no auth yet.
+-- Development-only schema: anonymous policies below are unsafe for patient data.
 CREATE TABLE public.ckd_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   code TEXT NOT NULL UNIQUE,

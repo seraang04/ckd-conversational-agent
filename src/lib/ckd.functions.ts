@@ -10,29 +10,6 @@ const EntrySchema = z.object({
 
 export type EntryInput = z.infer<typeof EntrySchema>;
 
-/** Short warm reflection of one answer, plus one gentle probe. */
-export const reflectAnswer = createServerFn({ method: "POST" })
-  .inputValidator((input: unknown) =>
-    z
-      .object({
-        question: z.string(),
-        answer: z.string(),
-        speaker: z.string(),
-      })
-      .parse(input),
-  )
-  .handler(async ({ data }) => {
-    const { aiText, GUARDRAILS } = await import("./ai.server");
-    const text = await aiText(
-      `${GUARDRAILS}
-Reflect back what the person just said, using their own words where you can. Two short sentences at most, then one gentle question asking for a specific detail. Do not add new ideas of your own. Do not say anything about treatment options.`,
-      `Question asked: ${data.question}
-Answered by: ${data.speaker}
-Their answer: ${data.answer}`,
-    );
-    return { reflection: text };
-  });
-
 /** Distress check so the app can offer a human, never counselling. */
 export const checkDistress = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => z.object({ answer: z.string() }).parse(input))
@@ -107,7 +84,7 @@ Organise the conversation into short bullet points. Keep the patient's own wordi
 - differing_concerns: where patient and caregiver see things differently.
 - flagged_topics: unresolved or sensitive topics, named as a topic only, no private content.
 Never merge patient and caregiver voices. Never suggest a treatment. Each bullet: Simplified Chinese, then " / " then short English.`,
-      `Deferred or private topics the patient chose to hand to the renal coordinator: ${
+      `Topics marked private or deferred for the renal coordinator, without answer content: ${
         data.deferredTopics.join(", ") || "none"
       }
 
@@ -148,7 +125,7 @@ export const buildClinicianSummary = createServerFn({ method: "POST" })
       `${GUARDRAILS}
 Write a clinician-facing summary for the renal coordinator, readable in about one minute. Write it in English, with the patient's own Chinese phrases quoted where they are telling.
 Use these headings exactly, as markdown level-3 headings: "From the patient", "From the caregiver", "Shared and differing concerns", "Needs follow-up".
-Mark clearly what came from the patient and what came from the caregiver. List deferred or private topics by topic name only, noting the patient chose to raise them with the coordinator. Do not recommend, rank or compare treatments. End with one line: "Prepared before consultation. Not a clinical recommendation."`,
+Mark clearly what came from the patient and what came from the caregiver. List deferred or private topics by topic name only, keeping the patient or caregiver attribution. Do not recommend, rank or compare treatments. End with one line: "Prepared before consultation. Not a clinical recommendation."`,
       JSON.stringify(data, null, 2),
     );
     return { summary: text };

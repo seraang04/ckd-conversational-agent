@@ -1,26 +1,36 @@
-import { useText, LanguageContext } from "@/lib/language";
+import { useText, LanguageContext, type Language } from "@/lib/language";
 import { Link } from "@tanstack/react-router";
+import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 
-export function AppHeader({ subtitle }: { subtitle?: string | undefined }) {
+export function BrandMark({ className }: { className?: string }) {
+  return (
+    <span className={cn("inline-flex h-12 w-12 shrink-0 overflow-hidden", className)}>
+      <img src={logo} alt="" className="h-full w-full scale-[1.65] object-contain" />
+    </span>
+  );
+}
+
+export function AppHeader({ action, minimal = false }: { action?: ReactNode; minimal?: boolean }) {
   const t = useText();
   return (
-    <header className="flex items-center gap-3 border-b border-border px-5 py-4">
-      <Link to="/" className="flex items-center gap-3">
-        <img src={logo} alt="" width={40} height={40} className="h-10 w-10" />
-        <span className="text-left leading-tight">
-          <span className="block text-base font-semibold text-foreground">
-            {t("谈谈我在意的事", "What matters to me")}
-          </span>
-          <span className="block text-xs text-muted-foreground">
-            {subtitle ??
-              t("看诊之前，谈谈您在意的事", "Values conversation before your kidney consultation")}
-          </span>
-        </span>
-      </Link>
+    <header className="border-b border-border px-5 py-2">
+      <div className="mx-auto flex max-w-4xl items-center justify-between gap-2">
+        {minimal ? (
+          <BrandMark className="h-10 w-10 sm:h-12 sm:w-12" />
+        ) : (
+          <Link to="/" className="flex min-w-0 items-center gap-2 sm:gap-3">
+            <BrandMark className="h-10 w-10 sm:h-12 sm:w-12" />
+            <span className="text-base font-semibold leading-tight text-foreground sm:text-xl">
+              {t("谈谈我在意的事", "What matters to me")}
+            </span>
+          </Link>
+        )}
+        {action}
+      </div>
     </header>
   );
 }
@@ -28,18 +38,20 @@ export function AppHeader({ subtitle }: { subtitle?: string | undefined }) {
 export function Page({
   children,
   variant = "patient",
-  subtitle,
   language,
+  headerAction,
+  minimalHeader = false,
 }: {
   children: ReactNode;
-  language?: string | undefined;
+  language: Language;
+  headerAction?: ReactNode;
+  minimalHeader?: boolean;
   variant?: "patient" | "caregiver" | "clinician";
-  subtitle?: string | undefined;
 }) {
   return (
     <LanguageContext.Provider value={language}>
       <div
-        lang={language === "en" ? "en" : language ? "zh-Hans" : undefined}
+        lang={language === "en" ? "en" : "zh-Hans"}
         className={cn(
           "min-h-screen",
           variant === "caregiver" && "bg-caregiver-surface",
@@ -47,8 +59,10 @@ export function Page({
           variant === "clinician" && "bg-muted",
         )}
       >
-        <AppHeader subtitle={subtitle} />
-        <main className="mx-auto w-full max-w-2xl px-5 pb-28 pt-6">{children}</main>
+        <AppHeader action={headerAction} minimal={minimalHeader} />
+        <main className="mx-auto flex min-h-[calc(100vh-64px)] w-full max-w-4xl flex-col justify-center px-5 py-8 sm:px-8 sm:py-10">
+          {children}
+        </main>
       </div>
     </LanguageContext.Provider>
   );
@@ -75,7 +89,7 @@ export function BigButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "w-full rounded-2xl px-6 py-5 text-xl font-semibold transition-colors disabled:opacity-50",
+        "min-h-16 w-full rounded-2xl px-6 py-4 text-xl font-semibold transition-colors focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-ring disabled:opacity-50",
         variant === "primary" && "bg-primary text-primary-foreground hover:bg-primary/90",
         variant === "soft" && "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         variant === "ghost" && "border-2 border-border bg-card text-foreground hover:bg-muted",
@@ -85,6 +99,38 @@ export function BigButton({
       )}
     >
       {children}
+    </button>
+  );
+}
+
+export const actionControlClass =
+  "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border-2 border-border bg-card px-4 py-2 text-base font-semibold text-foreground transition-colors hover:bg-secondary focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:opacity-50";
+
+export const quietActionClass =
+  "inline-flex min-h-12 items-center gap-2 px-1 text-base font-semibold text-primary underline-offset-4 hover:underline focus-visible:rounded-md focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-ring disabled:opacity-50 sm:text-lg";
+
+export function ActionButton({
+  icon: Icon,
+  children,
+  onClick,
+  disabled,
+  className,
+}: {
+  icon: LucideIcon;
+  children: ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className={cn(actionControlClass, className)}
+    >
+      <Icon className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+      <span>{children}</span>
     </button>
   );
 }
@@ -128,7 +174,7 @@ export function Notice({
   return (
     <p
       className={cn(
-        "rounded-2xl px-4 py-3 text-sm",
+        "rounded-2xl px-5 py-4 text-base leading-relaxed",
         tone === "info" && "bg-secondary text-secondary-foreground",
         tone === "warn" && "bg-accent text-accent-foreground",
       )}
@@ -144,7 +190,7 @@ export function SpeakerBadge({ speaker }: { speaker: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
+        "inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold",
         isPatient
           ? "bg-primary text-primary-foreground"
           : "bg-caregiver-accent text-primary-foreground",
@@ -152,17 +198,5 @@ export function SpeakerBadge({ speaker }: { speaker: string }) {
     >
       {isPatient ? t("病人", "Patient") : t("照顾者", "Caregiver")}
     </span>
-  );
-}
-
-export function FooterNote() {
-  const t = useText();
-  return (
-    <p className="mt-8 text-center text-xs leading-relaxed text-muted-foreground">
-      {t(
-        "这个对话是为了帮助您准备门诊，不会给治疗建议，也不会取代医生的诊断。",
-        "Prepares you for the consultation. It never recommends treatment or replaces your care team.",
-      )}
-    </p>
   );
 }

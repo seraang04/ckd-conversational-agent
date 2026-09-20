@@ -16,9 +16,7 @@ export const Route = createFileRoute("/api/speak")({
         const instructions =
           dialect === "en"
             ? "Speak in clear, gentle English, slowly and warmly, like talking with an elderly patient. Pause between sentences."
-            : dialect === "hokkien"
-              ? "Speak in Hokkien (Minnan) as an older Singaporean or Malaysian speaker would. Warm, slow, gentle, like talking with an elderly patient."
-              : "Speak in gentle Mandarin Chinese, slowly and warmly, like talking with an elderly patient. Pause between sentences.";
+            : "Speak in gentle Mandarin Chinese, slowly and warmly, like talking with an elderly patient. Pause between sentences.";
 
         const res = await fetch("https://ai.gateway.lovable.dev/v1/audio/speech", {
           method: "POST",
