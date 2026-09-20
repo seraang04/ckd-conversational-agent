@@ -161,12 +161,18 @@ export function VoiceAnswer({
               onClick={() => (recording ? void finish() : void begin())}
               disabled={working || busy}
               className={cn(
-                "flex h-28 w-28 items-center justify-center rounded-full text-primary-foreground shadow-md transition-colors focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-ring disabled:opacity-60 sm:h-40 sm:w-40",
-                recording ? "bg-destructive" : "bg-primary hover:bg-primary/90",
+                "relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full text-primary-foreground shadow-md transition-colors focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-ring disabled:opacity-60 sm:h-40 sm:w-40",
+                recording || working ? "bg-destructive" : "bg-primary hover:bg-primary/90",
               )}
             >
               {working ? (
-                <Loader2 className="h-11 w-11 animate-spin" aria-hidden />
+                <span
+                  aria-hidden
+                  className="absolute inset-0 animate-[ping_1.6s_cubic-bezier(0,0,0.2,1)_infinite] rounded-full bg-primary-foreground/25"
+                />
+              ) : null}
+              {working ? (
+                <Mic className="h-12 w-12 animate-pulse sm:h-16 sm:w-16" aria-hidden />
               ) : recording ? (
                 <Square className="h-10 w-10 fill-current" aria-hidden />
               ) : (
