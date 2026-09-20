@@ -3,7 +3,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { VoiceAnswer } from "./VoiceAnswer";
-import { BigButton, Card, Notice } from "./ui";
+import { BigButton, Card, MicPending, Notice } from "./ui";
 import { nextConversationTurn } from "@/lib/ckd.functions";
 import { conversationContext, type ConversationScope } from "@/lib/conversation";
 import { SCRIPT, type ScriptQuestion } from "@/lib/ckd-script";
@@ -105,11 +105,17 @@ export function ConversationTurns({
 
   if (turn.isPending || saving || next?.complete) {
     return (
-      <div
-        role="status"
-        aria-label={t("正在准备下一题", "Preparing next question")}
-        className="mx-auto my-24 h-10 w-10 animate-spin rounded-full border-4 border-border border-t-primary"
-      />
+      <section className="mx-auto grid min-h-[calc(100dvh-8rem)] w-full max-w-3xl grid-rows-[minmax(11rem,auto)_minmax(14rem,1fr)_auto] gap-4 py-3 sm:min-h-[calc(100dvh-9rem)] sm:grid-rows-[minmax(11rem,auto)_minmax(16rem,1fr)_auto] sm:py-4">
+        <div className="space-y-4" aria-hidden>
+          <div className="h-9 w-3/4 max-w-md animate-pulse rounded-2xl bg-muted" />
+          <div
+            style={{ animationDelay: "0.4s" }}
+            className="h-9 w-1/2 max-w-xs animate-pulse rounded-2xl bg-muted"
+          />
+        </div>
+        <MicPending label={t("正在准备下一题", "Preparing next question")} />
+        <div />
+      </section>
     );
   }
 
