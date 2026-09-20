@@ -119,21 +119,23 @@ function SessionFlow() {
 
   const setStage = useCallback(
     async (stage: string, extra: Record<string, unknown> = {}) => {
-      if (!session) return;
+      if (!session) return false;
       try {
         await updateConversation(session.id, {
           stage,
           updated_at: new Date().toISOString(),
           ...extra,
         });
+        const result = await query.refetch();
+        if (result.isError) throw result.error;
+        return true;
       } catch (error) {
         console.error("Could not save stage", error);
         toast.error(t("无法保存进度，请重试。", "Could not save progress. Please try again."));
-        return;
+        return false;
       }
-      await refresh();
     },
-    [session, refresh, t],
+    [session, query, t],
   );
 
   const transitioningStage = useRef<string | null>(null);
@@ -237,7 +239,12 @@ function SessionFlow() {
       setBusy(true);
       try {
         const saved = await saveEntry(question, answer, mode, who, visibility);
-        if (saved && visibility === "shared" && answer.trim() && !localBackend) {
+        if (
+          saved &&
+          !["skipped", "deferred"].includes(visibility) &&
+          answer.trim() &&
+          !localBackend
+        ) {
           void distressCheck({ data: { answer } })
             .then(({ distressed }) => {
               if (distressed) setDistress(true);
@@ -355,7 +362,7 @@ function SessionFlow() {
             language={language}
             speaker="patient"
             onSave={saveConversationEntry}
-            onComplete={() => void setStage("gate")}
+            onComplete={() => setStage("gate")}
           />
         ) : null}
 
@@ -436,7 +443,7 @@ function SessionFlow() {
             language={language}
             speaker="caregiver"
             onSave={saveConversationEntry}
-            onComplete={() => void setStage("synthesis")}
+            onComplete={() => setStage("synthesis")}
           />
         ) : null}
 

@@ -178,6 +178,7 @@ Do not add a reflection, introduction, reassurance, or treatment advice. Do not 
 Only select a topic from available. Do not revisit skipped, deferred, or private topics. Respect reluctance or requests to stop.
 Set complete=true when there is enough understanding of this person's priorities, concerns, and practical support, or they want to finish. Do not complete before any answers exist.
 For patient scope, do not initiate transplant or donation discussion; that has a separate gate. Attribute caregiver views to the caregiver.
+For caregiver-4, ask only what the caregiver wants to raise privately with the renal coordinator. Do not include other topics in this question.
 When complete, use empty topic and question fields.`,
         JSON.stringify(context),
         "conversation_turn",

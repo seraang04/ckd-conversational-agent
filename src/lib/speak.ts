@@ -11,8 +11,10 @@ export function stopSpeaking() {
   currentRequest = null;
   if (typeof window !== "undefined") window.speechSynthesis?.cancel();
   if (current) {
+    current.onended = null;
+    current.onerror = null;
     current.pause();
-    current.src = "";
+    current.removeAttribute("src");
     current = null;
   }
   if (currentUrl) {
@@ -28,13 +30,18 @@ async function playAudio(url: string, objectUrl = false): Promise<boolean> {
   audio.onended = () => {
     if (current === audio) stopSpeaking();
   };
+  audio.onerror = () => {
+    if (current === audio) stopSpeaking();
+  };
   try {
     await audio.play();
     return true;
   } catch {
     if (current === audio) {
       current = null;
-      audio.src = "";
+      audio.onended = null;
+      audio.onerror = null;
+      audio.removeAttribute("src");
       if (objectUrl && currentUrl === url) {
         URL.revokeObjectURL(url);
         currentUrl = null;

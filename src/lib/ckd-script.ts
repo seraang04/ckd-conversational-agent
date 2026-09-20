@@ -56,6 +56,12 @@ export const SCRIPT: ScriptQuestion[] = [
     zh: "照顾病人时，您担心什么？",
     en: "What worries you about helping with their care?",
   },
+  {
+    id: "caregiver-4",
+    section: "caregiver",
+    zh: "有什么事，您想单独和肾科协调员谈？",
+    en: "Is there anything you'd like to discuss privately with the renal coordinator?",
+  },
 ];
 
 export const SENSITIVE_GATE = {

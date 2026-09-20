@@ -1,9 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { VoiceAnswer } from "./VoiceAnswer";
-import { BigButton, Card } from "./ui";
+import { BigButton, Card, Notice } from "./ui";
 import { nextConversationTurn } from "@/lib/ckd.functions";
 import { conversationContext, type ConversationScope } from "@/lib/conversation";
 import { SCRIPT, type ScriptQuestion } from "@/lib/ckd-script";
@@ -23,7 +23,7 @@ type Props = {
     who: "patient" | "caregiver",
     visibility: string,
   ) => Promise<boolean | undefined>;
-  onComplete: () => void;
+  onComplete: () => Promise<boolean>;
 };
 
 export function ConversationTurns({
@@ -38,6 +38,7 @@ export function ConversationTurns({
   const t = useText(language);
   const plan = useServerFn(nextConversationTurn);
   const [saving, setSaving] = useState(false);
+  const [advanceFailed, setAdvanceFailed] = useState(false);
   const savingRef = useRef(false);
   const completedRef = useRef(false);
   const context = conversationContext(scope, entries);
@@ -51,11 +52,19 @@ export function ConversationTurns({
   });
   const next = turn.data;
 
-  useEffect(() => {
-    if (!next?.complete || completedRef.current) return;
+  const advance = useCallback(async () => {
+    if (completedRef.current) return;
     completedRef.current = true;
-    onComplete();
-  }, [next?.complete, onComplete]);
+    try {
+      if (!(await onComplete())) setAdvanceFailed(true);
+    } catch {
+      setAdvanceFailed(true);
+    }
+  }, [onComplete]);
+
+  useEffect(() => {
+    if (next?.complete) void advance();
+  }, [next?.complete, advance]);
 
   const submit = async (answer: string, mode: "voice" | "typed", visibility: string) => {
     if (!next || savingRef.current) return;
@@ -76,6 +85,23 @@ export function ConversationTurns({
       setSaving(false);
     }
   };
+
+  if (next?.complete && advanceFailed) {
+    return (
+      <Card className="space-y-4">
+        <p>{t("无法继续。请重试。", "Could not continue. Please try again.")}</p>
+        <BigButton
+          onClick={() => {
+            completedRef.current = false;
+            setAdvanceFailed(false);
+            void advance();
+          }}
+        >
+          {t("重试", "Retry")}
+        </BigButton>
+      </Card>
+    );
+  }
 
   if (turn.isPending || saving || next?.complete) {
     return (
@@ -98,16 +124,28 @@ export function ConversationTurns({
 
   if (!next) return null;
   return (
-    <VoiceAnswer
-      key={historyKey}
-      questionZh={next.questionZh}
-      questionEn={next.questionEn}
-      language={language}
-      speaker={speaker}
-      onSubmit={(answer, mode) => void submit(answer, mode, "shared")}
-      onSkip={() => void submit("", "typed", "skipped")}
-      onDefer={() => void submit("", "typed", "deferred")}
-      busy={saving}
-    />
+    <div className="space-y-4">
+      {next.topic === "caregiver-4" ? (
+        <Notice>
+          {t(
+            "您的回答不会出现在病人的摘要中。",
+            "Your answer will not appear in the patient's summary.",
+          )}
+        </Notice>
+      ) : null}
+      <VoiceAnswer
+        key={historyKey}
+        questionZh={next.questionZh}
+        questionEn={next.questionEn}
+        language={language}
+        speaker={speaker}
+        onSubmit={(answer, mode) =>
+          void submit(answer, mode, next.topic === "caregiver-4" ? "private" : "shared")
+        }
+        onSkip={() => void submit("", "typed", "skipped")}
+        onDefer={() => void submit("", "typed", "deferred")}
+        busy={saving}
+      />
+    </div>
   );
 }
