@@ -262,11 +262,19 @@ function SessionFlow() {
   if (query.isLoading) {
     return (
       <Page language={requestedLanguage ?? "en"} minimalHeader>
-        <div
-          role="status"
-          aria-label={requestedLanguage === "zh" ? "正在打开对话" : "Opening conversation"}
-          className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-border border-t-primary"
-        />
+        <section className="mx-auto grid min-h-[calc(100dvh-10rem)] w-full max-w-3xl grid-rows-[minmax(11rem,auto)_minmax(14rem,1fr)_auto] gap-4 py-3">
+          <div className="space-y-4" aria-hidden>
+            <div className="h-9 w-3/4 max-w-md animate-pulse rounded-2xl bg-muted" />
+            <div
+              style={{ animationDelay: "0.4s" }}
+              className="h-9 w-1/2 max-w-xs animate-pulse rounded-2xl bg-muted"
+            />
+          </div>
+          <MicPending
+            label={requestedLanguage === "zh" ? "正在打开对话" : "Opening conversation"}
+          />
+          <div />
+        </section>
       </Page>
     );
   }
