@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { BigButton, Card, FooterNote, Page } from "@/components/ckd/ui";
+import { BrandMark } from "@/components/ckd/ui";
+import type { Language } from "@/lib/language";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -24,39 +25,40 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const navigate = useNavigate();
+  const chooseLanguage = (language: Language) => {
+    void navigate({ to: "/session", search: { language } });
+  };
 
   return (
-    <Page>
-      <div className="space-y-6">
-        <div className="space-y-3">
-          <h1 className="text-4xl font-semibold leading-tight text-foreground">
-            请选择您的语言 · Choose your language
-          </h1>
-          <p className="text-lg text-muted-foreground">
-            Choose the language you would like to speak during your conversation.
-          </p>
-        </div>
+    <div className="min-h-screen bg-patient-surface px-5">
+      <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col items-center justify-center py-10">
+        <BrandMark className="h-20 w-20" />
 
-        <Card className="space-y-4">
-          <BigButton
-            variant="soft"
-            onClick={() => void navigate({ to: "/session", search: { language: "en" } })}
+        <h1 className="mt-6 text-center text-3xl font-semibold leading-snug text-foreground">
+          <span lang="en" className="block">
+            Choose your language
+          </span>
+          <span lang="zh-Hans" className="block">
+            选择语言
+          </span>
+        </h1>
+        <div className="mt-10 w-full space-y-4">
+          <button
+            type="button"
+            className="min-h-20 w-full rounded-2xl border-2 border-primary bg-card px-6 py-5 text-2xl font-semibold text-foreground transition-colors hover:bg-secondary focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-ring"
+            onClick={() => chooseLanguage("en")}
           >
             English
-          </BigButton>
-          <BigButton onClick={() => void navigate({ to: "/session", search: { language: "zh" } })}>
-            华语 · Mandarin Chinese
-          </BigButton>
-          <BigButton
-            variant="soft"
-            onClick={() => void navigate({ to: "/session", search: { language: "hokkien" } })}
+          </button>
+          <button
+            type="button"
+            className="min-h-20 w-full rounded-2xl border-2 border-primary bg-card px-6 py-5 text-2xl font-semibold text-foreground transition-colors hover:bg-secondary focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-ring"
+            onClick={() => chooseLanguage("zh")}
           >
-            福建话 · Hokkien
-          </BigButton>
-        </Card>
-
-        <FooterNote />
-      </div>
-    </Page>
+            <span lang="zh-Hans">华语</span>
+          </button>
+        </div>
+      </main>
+    </div>
   );
 }

@@ -4,12 +4,17 @@ export const Route = createFileRoute("/api/transcribe")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const key = process.env["LOVABLE_API_KEY"];
-        if (!key) return new Response("Speech is not configured", { status: 500 });
+        const openaiKey = process.env["OPENAI_API_KEY"];
+        const lovableKey = process.env["LOVABLE_API_KEY"];
+        const key = openaiKey || lovableKey;
+        if (!key) {
+          return Response.json({ error: "transcribe_unavailable" }, { status: 503 });
+        }
 
-        const form = await request.formData();
+        const form = await request.formData().catch(() => null);
+        if (!form) return Response.json({ error: "empty_recording" }, { status: 400 });
         const file = form.get("file");
-        const language = String(form.get("language") ?? "");
+        const language = form.get("language");
         if (!(file instanceof File) || file.size < 2048) {
           return new Response(JSON.stringify({ error: "empty_recording" }), {
             status: 400,
@@ -21,35 +26,36 @@ export const Route = createFileRoute("/api/transcribe")({
         }
 
         const upstream = new FormData();
-        upstream.append("model", "openai/gpt-4o-transcribe");
+        upstream.append("model", openaiKey ? "gpt-4o-transcribe" : "openai/gpt-4o-transcribe");
         upstream.append("file", file, "recording.wav");
         // zh covers Mandarin; render Chinese transcripts in Simplified Chinese.
-        if (language) upstream.append("language", language);
+        if (language === "en" || language === "zh") upstream.append("language", language);
         if (language === "zh") {
           upstream.append(
             "prompt",
-            "请使用简体中文记录语音内容，保留说话者的原意。不要使用繁体字。",
+            "请按原话转录，包括华语、福建话或英语夹杂。中文使用简体字，不要翻译或改写。",
           );
         }
 
-        const res = await fetch("https://ai.gateway.lovable.dev/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${key}` },
-          body: upstream,
-        });
+        const res = await fetch(
+          openaiKey
+            ? "https://api.openai.com/v1/audio/transcriptions"
+            : "https://ai.gateway.lovable.dev/v1/audio/transcriptions",
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${key}` },
+            body: upstream,
+            signal: AbortSignal.timeout(60000),
+          },
+        );
 
         if (!res.ok) {
-          const detail = await res.text().catch(() => "");
-          return new Response(JSON.stringify({ error: detail.slice(0, 400) }), {
-            status: res.status,
-            headers: { "Content-Type": "application/json" },
-          });
+          console.error("Transcription failed", res.status);
+          return Response.json({ error: "transcribe_failed" }, { status: 502 });
         }
 
         const data = (await res.json()) as { text?: string };
-        return new Response(JSON.stringify({ text: data.text ?? "" }), {
-          headers: { "Content-Type": "application/json" },
-        });
+        return Response.json({ text: data.text ?? "" });
       },
     },
   },

@@ -1,21 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
 import { VoiceAnswer } from "./VoiceAnswer";
 import { BigButton, Card, Notice } from "./ui";
 import { nextConversationTurn } from "@/lib/ckd.functions";
 import { conversationContext, type ConversationScope } from "@/lib/conversation";
 import { SCRIPT, type ScriptQuestion } from "@/lib/ckd-script";
 import type { EntryRow } from "@/lib/ckd-db";
-import { useText } from "@/lib/language";
+import { useText, type Language } from "@/lib/language";
 
 type Props = {
   sessionId: string;
   scope: ConversationScope;
   entries: EntryRow[];
-  dialect: string;
+  language: Language;
   speaker: "patient" | "caregiver";
-  onSpeakerChange: (speaker: "patient" | "caregiver") => void;
   onSave: (
     question: ScriptQuestion,
     answer: string,
@@ -23,23 +23,24 @@ type Props = {
     who: "patient" | "caregiver",
     visibility: string,
   ) => Promise<boolean | undefined>;
-  onComplete: () => void;
+  onComplete: () => Promise<boolean>;
 };
 
 export function ConversationTurns({
   sessionId,
   scope,
   entries,
-  dialect,
+  language,
   speaker,
-  onSpeakerChange,
   onSave,
   onComplete,
 }: Props) {
-  const t = useText(dialect);
+  const t = useText(language);
   const plan = useServerFn(nextConversationTurn);
   const [saving, setSaving] = useState(false);
+  const [advanceFailed, setAdvanceFailed] = useState(false);
   const savingRef = useRef(false);
+  const completedRef = useRef(false);
   const context = conversationContext(scope, entries);
   const historyKey = JSON.stringify(context.history);
   const turn = useQuery({
@@ -50,9 +51,24 @@ export function ConversationTurns({
     refetchOnWindowFocus: false,
   });
   const next = turn.data;
+
+  const advance = useCallback(async () => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    try {
+      if (!(await onComplete())) setAdvanceFailed(true);
+    } catch {
+      setAdvanceFailed(true);
+    }
+  }, [onComplete]);
+
+  useEffect(() => {
+    if (next?.complete) void advance();
+  }, [next?.complete, advance]);
+
   const submit = async (answer: string, mode: "voice" | "typed", visibility: string) => {
     if (!next || savingRef.current) return;
-    const topic = SCRIPT.find((q) => q.id === next.topic);
+    const topic = SCRIPT.find((question) => question.id === next.topic);
     if (!topic) return;
     savingRef.current = true;
     setSaving(true);
@@ -69,60 +85,67 @@ export function ConversationTurns({
       setSaving(false);
     }
   };
+
+  if (next?.complete && advanceFailed) {
+    return (
+      <Card className="space-y-4">
+        <p>{t("无法继续。请重试。", "Could not continue. Please try again.")}</p>
+        <BigButton
+          onClick={() => {
+            completedRef.current = false;
+            setAdvanceFailed(false);
+            void advance();
+          }}
+        >
+          {t("重试", "Retry")}
+        </BigButton>
+      </Card>
+    );
+  }
+
+  if (turn.isPending || saving || next?.complete) {
+    return (
+      <div
+        role="status"
+        aria-label={t("正在准备下一题", "Preparing next question")}
+        className="mx-auto my-24 h-10 w-10 animate-spin rounded-full border-4 border-border border-t-primary"
+      />
+    );
+  }
+
+  if (turn.isError) {
+    return (
+      <Card className="space-y-4">
+        <p>{t("无法加载下一题。", "Could not load the next question.")}</p>
+        <BigButton onClick={() => void turn.refetch()}>{t("重试", "Retry")}</BigButton>
+      </Card>
+    );
+  }
+
+  if (!next) return null;
   return (
-    <div className="space-y-5">
-      {turn.isPending || saving ? (
-        <Card>
-          <p role="status">{t("让我想一想…", "Taking a moment…")}</p>
-        </Card>
-      ) : turn.isError ? (
-        <Card className="space-y-4">
-          <p>
-            {t(
-              "暂时无法继续对话。已保存的回答还在，请重试。",
-              "We couldn't prepare the next question. Your saved answers are safe. Please retry.",
-            )}
-          </p>
-          <BigButton onClick={() => void turn.refetch()}>{t("重试", "Retry")}</BigButton>
-        </Card>
-      ) : next?.complete ? (
-        <Card className="space-y-4">
-          <p>
-            {t(
-              "谢谢您分享这些。准备好后，我们继续。",
-              "Thank you for sharing this. We can move on when you are ready.",
-            )}
-          </p>
-          <BigButton onClick={onComplete}>{t("继续", "Continue")}</BigButton>
-        </Card>
-      ) : next ? (
-        <>
-          {next.topic === "caregiver-4" ? (
-            <Notice>
-              {t("这个回答只留给协调员。", "This answer is kept private for the coordinator.")}
-            </Notice>
-          ) : null}
-          <VoiceAnswer
-            key={historyKey}
-            questionZh={next.questionZh}
-            questionEn={next.questionEn}
-            reflection={next.reflectionZh ? `${next.reflectionZh}\nEN: ${next.reflectionEn}` : null}
-            dialect={dialect}
-            speaker={speaker}
-            onSpeakerChange={onSpeakerChange}
-            onSubmit={(answer, mode) =>
-              void submit(answer, mode, next.topic === "caregiver-4" ? "private" : "shared")
-            }
-            onSkip={() => void submit("（跳过 skipped）", "typed", "skipped")}
-            onDefer={() =>
-              void submit("（留给协调员 deferred to coordinator）", "typed", "deferred")
-            }
-          />
-          <button type="button" className="text-base text-primary underline" onClick={onComplete}>
-            {t("这一部分先谈到这里", "That's enough for this section")}
-          </button>
-        </>
+    <div className="space-y-4">
+      {next.topic === "caregiver-4" ? (
+        <Notice>
+          {t(
+            "您的回答不会出现在病人的摘要中。",
+            "Your answer will not appear in the patient's summary.",
+          )}
+        </Notice>
       ) : null}
+      <VoiceAnswer
+        key={historyKey}
+        questionZh={next.questionZh}
+        questionEn={next.questionEn}
+        language={language}
+        speaker={speaker}
+        onSubmit={(answer, mode) =>
+          void submit(answer, mode, next.topic === "caregiver-4" ? "private" : "shared")
+        }
+        onSkip={() => void submit("", "typed", "skipped")}
+        onDefer={() => void submit("", "typed", "deferred")}
+        busy={saving}
+      />
     </div>
   );
 }

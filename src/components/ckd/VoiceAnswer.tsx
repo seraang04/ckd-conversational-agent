@@ -1,8 +1,8 @@
-import { useText, translatedText } from "@/lib/language";
-import { Loader2, Mic, Pencil, Square, Volume2 } from "lucide-react";
+import { useText, type Language } from "@/lib/language";
+import { Keyboard, Loader2, Mic, Square, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { BigButton, Card, SpeakerBadge, inputClass } from "@/components/ckd/ui";
+import { BigButton, SpeakerBadge, inputClass, quietActionClass } from "@/components/ckd/ui";
 import { startRecording, type Recorder } from "@/lib/recorder";
 import { speak, stopSpeaking, transcribe } from "@/lib/speak";
 import { cn } from "@/lib/utils";
@@ -10,61 +10,86 @@ import { cn } from "@/lib/utils";
 type Props = {
   questionZh: string;
   questionEn: string;
-  dialect: string;
+  language: Language;
   speaker: "patient" | "caregiver";
-  onSpeakerChange: (speaker: "patient" | "caregiver") => void;
   onSubmit: (answer: string, mode: "voice" | "typed") => void;
   onSkip: () => void;
-  onDefer: () => void;
+  onDefer?: () => void;
   busy?: boolean;
-  reflection?: string | null;
 };
+
+function elapsedTime(seconds: number) {
+  return `${Math.floor(seconds / 60)
+    .toString()
+    .padStart(2, "0")}:${(seconds % 60).toString().padStart(2, "0")}`;
+}
 
 export function VoiceAnswer({
   questionZh,
   questionEn,
-  dialect,
+  language,
   speaker,
-  onSpeakerChange,
   onSubmit,
   onSkip,
   onDefer,
   busy,
-  reflection,
 }: Props) {
-  const t = useText(dialect);
-  const spokenQuestion = dialect === "en" ? questionEn : questionZh;
-  const spokenTurn = reflection
-    ? `${translatedText(reflection, dialect)} ${spokenQuestion}`
-    : spokenQuestion;
+  const t = useText(language);
+  const question = language === "en" ? questionEn : questionZh;
   const [draft, setDraft] = useState("");
   const [recording, setRecording] = useState(false);
   const [working, setWorking] = useState(false);
   const [typing, setTyping] = useState(false);
+  const [answerMode, setAnswerMode] = useState<"voice" | "typed">("typed");
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
+  const [recordedSeconds, setRecordedSeconds] = useState(0);
   const recorderRef = useRef<Recorder | null>(null);
+  const autoplayTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     setDraft("");
     setTyping(false);
+    setAnswerMode("typed");
     setError(null);
-    void speak(spokenTurn, dialect);
-    return () => stopSpeaking();
-  }, [spokenTurn, dialect]);
+    return () => {
+      stopSpeaking();
+      recorderRef.current?.cancel();
+      recorderRef.current = null;
+    };
+  }, [question]);
+
+  useEffect(() => {
+    // Defer playback so React's development effect replay does not start it twice.
+    autoplayTimerRef.current = window.setTimeout(() => {
+      autoplayTimerRef.current = null;
+      void speak(question, language);
+    }, 0);
+    return () => {
+      if (autoplayTimerRef.current !== null) window.clearTimeout(autoplayTimerRef.current);
+      autoplayTimerRef.current = null;
+      stopSpeaking();
+    };
+  }, [question, language]);
+
+  useEffect(() => {
+    if (!recording) return;
+    const timer = window.setInterval(() => setRecordedSeconds((seconds) => seconds + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [recording]);
 
   const begin = useCallback(async () => {
     setError(null);
+    if (autoplayTimerRef.current !== null) window.clearTimeout(autoplayTimerRef.current);
+    autoplayTimerRef.current = null;
     stopSpeaking();
     try {
       recorderRef.current = await startRecording(setLevel);
+      setRecordedSeconds(0);
       setRecording(true);
     } catch {
       setError(
-        t(
-          "没办法使用麦克风。请允许麦克风权限，或用打字。",
-          "Microphone unavailable — allow access or type instead.",
-        ),
+        t("无法使用麦克风。您可以打字回答。", "Microphone unavailable. You can type your answer."),
       );
       setTyping(true);
     }
@@ -73,142 +98,166 @@ export function VoiceAnswer({
   const finish = useCallback(async () => {
     const recorder = recorderRef.current;
     if (!recorder) return;
+    recorderRef.current = null;
     setRecording(false);
     setWorking(true);
-    recorderRef.current = null;
     try {
       const blob = await recorder.stop();
-      const text = await transcribe(blob, dialect === "en" ? "en" : "zh");
+      const text = await transcribe(blob, language);
       if (!text) throw new Error("empty_recording");
       setDraft((prev) => (prev ? `${prev} ${text}` : text));
+      setAnswerMode("voice");
     } catch (err) {
       setError(
         (err as Error).message === "empty_recording"
-          ? t("没有听到声音，请再说一次。", "Nothing was heard — please try again.")
+          ? t("没有听到声音，请再试一次。", "Nothing was heard. Please try again.")
           : t(
-              "刚刚没听清楚，请再说一次，或用打字。",
-              "That didn't come through — try again or type it.",
+              "没听清楚。请再试一次，或打字回答。",
+              "We couldn't hear that. Try again or type your answer.",
             ),
       );
     } finally {
       setWorking(false);
       setLevel(0);
     }
-  }, [dialect, t]);
+  }, [language, t]);
+
+  const showRecorder = recording || working || (!draft && !typing);
 
   return (
-    <Card className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <SpeakerBadge speaker={speaker} />
+    <section className="mx-auto grid min-h-[calc(100dvh-8rem)] w-full max-w-3xl grid-rows-[minmax(11rem,auto)_minmax(14rem,1fr)_auto] gap-4 py-3 sm:min-h-[calc(100dvh-9rem)] sm:grid-rows-[minmax(11rem,auto)_minmax(16rem,1fr)_auto] sm:py-4">
+      <div className="space-y-4">
+        {speaker === "caregiver" ? <SpeakerBadge speaker={speaker} /> : null}
+        <h1 className="max-w-2xl text-3xl font-semibold leading-tight text-foreground sm:text-4xl">
+          {question}
+        </h1>
         <button
           type="button"
-          disabled={busy || recording || working}
-          onClick={() => onSpeakerChange(speaker === "patient" ? "caregiver" : "patient")}
-          className="rounded-full border-2 border-border px-4 py-2 text-sm font-medium text-foreground"
+          className={quietActionClass}
+          disabled={recording || working}
+          onClick={() => void speak(question, language)}
         >
-          {t("换人说话", "Switch speaker")}
+          <Volume2 className="h-6 w-6" aria-hidden />
+          {t("听题目", "Hear question")}
         </button>
       </div>
 
-      {reflection ? (
-        <div className="rounded-2xl bg-secondary p-4 text-base leading-relaxed text-secondary-foreground whitespace-pre-line">
-          {translatedText(reflection, dialect)}
+      {showRecorder ? (
+        <div className="flex flex-col items-center justify-center gap-4 py-3 text-center">
+          <div
+            className={cn(
+              "rounded-full p-2 transition-colors",
+              recording ? "bg-destructive/15" : "bg-primary/10",
+            )}
+            style={
+              recording ? { transform: `scale(${1 + Math.min(level, 0.5) * 0.08})` } : undefined
+            }
+          >
+            <button
+              type="button"
+              aria-label={
+                recording ? t("结束录音", "Stop recording") : t("说出回答", "Speak your answer")
+              }
+              onClick={() => (recording ? void finish() : void begin())}
+              disabled={working || busy}
+              className={cn(
+                "flex h-28 w-28 items-center justify-center rounded-full text-primary-foreground shadow-md transition-colors focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-ring disabled:opacity-60 sm:h-40 sm:w-40",
+                recording ? "bg-destructive" : "bg-primary hover:bg-primary/90",
+              )}
+            >
+              {working ? (
+                <Loader2 className="h-11 w-11 animate-spin" aria-hidden />
+              ) : recording ? (
+                <Square className="h-10 w-10 fill-current" aria-hidden />
+              ) : (
+                <Mic className="h-12 w-12" aria-hidden />
+              )}
+            </button>
+          </div>
+          <p className="text-xl font-semibold text-foreground" role="status">
+            {working
+              ? t("正在转成文字…", "Turning speech into text…")
+              : recording
+                ? t("正在录音", "Recording")
+                : t("按麦克风说话", "Tap the microphone to speak")}
+          </p>
+          {recording ? (
+            <p className="text-base text-muted-foreground">
+              {elapsedTime(recordedSeconds)} · {t("说完后再按一次", "Tap again when finished")}
+            </p>
+          ) : null}
         </div>
+      ) : (
+        <div className="space-y-4">
+          <label htmlFor="answer-draft" className="block text-lg font-semibold text-foreground">
+            {t("您的回答", "Your answer")}
+          </label>
+          <textarea
+            id="answer-draft"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            rows={3}
+            className={cn(inputClass, "text-xl leading-relaxed")}
+          />
+          <BigButton
+            onClick={() => onSubmit(draft.trim(), answerMode)}
+            disabled={busy || !draft.trim()}
+          >
+            {busy ? t("正在保存…", "Saving…") : t("保存并继续", "Save and continue")}
+          </BigButton>
+        </div>
+      )}
+
+      {error ? (
+        <p role="alert" className="text-base text-destructive">
+          {error}
+        </p>
       ) : null}
 
-      <div className="space-y-2">
-        <p className="text-3xl font-semibold leading-snug text-foreground">{spokenQuestion}</p>
-
+      <div className="flex flex-wrap items-center gap-x-8 gap-y-1 border-t border-border pt-3">
         <button
           type="button"
-          onClick={() => void speak(spokenTurn, dialect)}
-          className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-2 text-sm font-medium text-secondary-foreground"
+          className={quietActionClass}
+          disabled={busy || working || recording}
+          onClick={() => {
+            if (showRecorder) {
+              setTyping(true);
+              setAnswerMode("typed");
+            } else {
+              void begin();
+            }
+          }}
         >
-          <Volume2 className="h-4 w-4" /> {t("再听一次", "Read aloud")}
-        </button>
-      </div>
-
-      <div className="space-y-3">
-        <button
-          type="button"
-          onClick={() => (recording ? void finish() : void begin())}
-          disabled={working || busy}
-          className={cn(
-            "flex w-full flex-col items-center gap-3 rounded-3xl px-6 py-10 text-xl font-semibold transition-colors disabled:opacity-60",
-            recording
-              ? "bg-destructive text-destructive-foreground"
-              : "bg-primary text-primary-foreground",
+          {showRecorder ? (
+            <Keyboard className="h-5 w-5" aria-hidden />
+          ) : (
+            <Mic className="h-5 w-5" aria-hidden />
           )}
-        >
-          <span
-            className="flex h-20 w-20 items-center justify-center rounded-full bg-primary-foreground/15"
-            style={recording ? { transform: `scale(${1 + Math.min(level, 0.5)})` } : undefined}
-          >
-            {working ? (
-              <Loader2 className="h-10 w-10 animate-spin" />
-            ) : recording ? (
-              <Square className="h-9 w-9" />
-            ) : (
-              <Mic className="h-10 w-10" />
-            )}
-          </span>
-          {working
-            ? t("正在整理您的话…", "Transcribing…")
-            : recording
-              ? t("说完了，按一下", "Tap when done")
-              : t("按一下开始说话", "Tap to speak")}
+          {showRecorder
+            ? t("改用打字", "Type answer")
+            : draft
+              ? t("继续说", "Speak more")
+              : t("改用语音", "Speak instead")}
         </button>
-
-        {!typing ? (
+        {onDefer ? (
           <button
             type="button"
-            onClick={() => setTyping(true)}
-            className="inline-flex items-center gap-2 text-base font-medium text-primary underline"
+            className={quietActionClass}
+            disabled={busy || working || recording}
+            onClick={onDefer}
           >
-            <Pencil className="h-4 w-4" /> {t("帮他打字", "Type the answer instead")}
+            {t("留到看诊时再谈", "Discuss at appointment")}
           </button>
         ) : null}
-      </div>
-
-      {error ? <p className="text-base text-destructive">{error}</p> : null}
-
-      {typing || draft ? (
-        <textarea
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          rows={5}
-          placeholder={t("在这里打字", "Type here")}
-          className={cn(inputClass, "text-xl leading-relaxed")}
-        />
-      ) : null}
-
-      {draft.trim() ? (
-        <BigButton
-          onClick={() => onSubmit(draft.trim(), typing ? "typed" : "voice")}
-          disabled={busy || recording || working}
-        >
-          {busy ? "…" : t("就是这样", "That's right")}
-        </BigButton>
-      ) : null}
-
-      <div className="flex flex-wrap gap-3">
         <button
           type="button"
-          disabled={busy || recording || working}
+          className={cn(quietActionClass, "ml-auto text-muted-foreground")}
+          disabled={busy || working || recording}
           onClick={onSkip}
-          className="rounded-full border-2 border-border px-4 py-3 text-sm font-medium"
         >
-          {t("跳过这题", "Skip")}
-        </button>
-        <button
-          type="button"
-          disabled={busy || recording || working}
-          onClick={onDefer}
-          className="rounded-full border-2 border-border px-4 py-3 text-sm font-medium"
-        >
-          {t("留给协调员谈", "Leave for the coordinator")}
+          {t("跳过", "Skip")}
         </button>
       </div>
-    </Card>
+    </section>
   );
 }

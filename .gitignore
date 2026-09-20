@@ -30,3 +30,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local Supabase CLI state
+supabase/.branches/
+supabase/.temp/
+
+# Lovable needs the tracked .env for public VITE_ build values.
+# Keep private keys in these untracked local files, never in .env.
+.env.*
+!.env.example

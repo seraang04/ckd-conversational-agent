@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import type { Language } from "@/lib/language";
 
 export type SessionRow = {
   id: string;
@@ -50,7 +51,67 @@ export function makeCode() {
   return out;
 }
 
+const backendUrl = import.meta.env["VITE_SUPABASE_URL"] ?? "";
+const serviceConfigured = Boolean(backendUrl && import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"]);
+export const localBackend =
+  import.meta.env.DEV && /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(backendUrl);
+// A checked-out Lovable .env points at the cloud database. Local development
+// must opt in before it can write there.
+export const remoteDevBlocked =
+  import.meta.env.DEV && !localBackend && import.meta.env["VITE_ALLOW_REMOTE_DEV"] !== "true";
+export const serviceUnavailable = !serviceConfigured || remoteDevBlocked;
+
+function requireService() {
+  if (serviceUnavailable) throw new Error("Conversation service is not configured for this run");
+}
+
+export async function createConversation(language: Language) {
+  requireService();
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const code = makeCode();
+    const { error } = await supabase.from("ckd_sessions").insert({
+      code,
+      patient_label: "Patient",
+      language,
+      stage: localBackend ? "explore" : "consent",
+      readiness: "ready",
+      consent_recording: false,
+      consent_sharing: false,
+    });
+    if (!error) return code;
+    if (error.code !== "23505" || attempt === 2) throw error;
+  }
+  throw new Error("Could not create conversation");
+}
+
+export async function updateConversation(id: string, patch: Record<string, unknown>) {
+  requireService();
+  const { error } = await supabase
+    .from("ckd_sessions")
+    .update(patch as Partial<SessionRow>)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function addConversationEntry(entry: Omit<EntryRow, "id" | "created_at">) {
+  requireService();
+  const { error } = await supabase.from("ckd_entries").insert(entry);
+  if (error) throw error;
+}
+
+export async function saveConversationSummary(id: string, patch: Partial<SummaryRow>) {
+  requireService();
+  const { error } = await supabase
+    .from("ckd_summaries")
+    .upsert(
+      { session_id: id, ...patch, updated_at: new Date().toISOString() },
+      { onConflict: "session_id" },
+    );
+  if (error) throw error;
+}
+
 export async function fetchSessionBundle(code: string) {
+  requireService();
   const { data: session, error } = await supabase
     .from("ckd_sessions")
     .select("*")
@@ -59,7 +120,7 @@ export async function fetchSessionBundle(code: string) {
   if (error) throw error;
   if (!session) return null;
 
-  const [{ data: entries }, { data: summary }] = await Promise.all([
+  const [entriesResult, summaryResult] = await Promise.all([
     supabase
       .from("ckd_entries")
       .select("*")
@@ -67,15 +128,18 @@ export async function fetchSessionBundle(code: string) {
       .order("created_at", { ascending: true }),
     supabase.from("ckd_summaries").select("*").eq("session_id", session.id).maybeSingle(),
   ]);
+  if (entriesResult.error) throw entriesResult.error;
+  if (summaryResult.error) throw summaryResult.error;
 
   return {
     session: session as SessionRow,
-    entries: (entries ?? []) as EntryRow[],
-    summary: (summary ?? null) as SummaryRow | null,
+    entries: (entriesResult.data ?? []) as EntryRow[],
+    summary: (summaryResult.data ?? null) as SummaryRow | null,
   };
 }
 
 export async function fetchCompletedSessions() {
+  requireService();
   const { data, error } = await supabase
     .from("ckd_sessions")
     .select("*")

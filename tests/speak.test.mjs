@@ -90,5 +90,11 @@ test("speech cancels stale requests and keeps only one player active", async (t)
   await fifth;
   players[1].onended();
   assert.equal(players[1].playing, false);
-  assert.deepEqual(revoked, ["blob:0", "blob:1"]);
+  const sixth = speak("Sixth", "zh");
+  requests[5].resolve(response);
+  await sixth;
+  assert.equal(players[2].playing, true);
+  players[2].onerror();
+  assert.equal(players[2].playing, false);
+  assert.deepEqual(revoked, ["blob:0", "blob:1", "blob:2"]);
 });
