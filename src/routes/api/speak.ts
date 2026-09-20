@@ -1,44 +1,62 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { SPOKEN_PROMPTS } from "@/lib/ckd-script";
 
-type SpeakBody = { text?: string; dialect?: string };
+type SpeakBody = { promptId?: string; language?: string };
+
+const VOICE_INSTRUCTIONS = {
+  en: "Speak in clear Singapore English with a light, natural local cadence. Sound warm, calm and conversational. Ask the question at an everyday pace. Do not add or change words.",
+  zh: "请用清晰、自然的新加坡华语发问。语气亲切、温暖，语速自然，适当停顿。不要增删文字。",
+} as const;
 
 export const Route = createFileRoute("/api/speak")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const key = process.env["LOVABLE_API_KEY"];
-        if (!key) return new Response("Speech is not configured", { status: 500 });
-
-        const { text, dialect } = (await request.json()) as SpeakBody;
-        const spoken = (text ?? "").slice(0, 1200).trim();
-        if (!spoken) return new Response("No text", { status: 400 });
-
-        const instructions =
-          dialect === "en"
-            ? "Speak in clear, gentle English, slowly and warmly, like talking with an elderly patient. Pause between sentences."
-            : "Speak in gentle Mandarin Chinese, slowly and warmly, like talking with an elderly patient. Pause between sentences.";
-
-        const res = await fetch("https://ai.gateway.lovable.dev/v1/audio/speech", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "openai/gpt-4o-mini-tts",
-            input: spoken,
-            voice: "shimmer",
-            instructions,
-            response_format: "mp3",
-            stream_format: "audio",
-          }),
-        });
-
-        if (!res.ok || !res.body) {
-          const detail = await res.text().catch(() => "");
-          return new Response(detail.slice(0, 400) || "Speech failed", { status: res.status });
+        const body = (await request.json().catch(() => null)) as SpeakBody | null;
+        const language = body?.language;
+        if (language !== "en" && language !== "zh") {
+          return Response.json({ error: "invalid_language" }, { status: 400 });
         }
+        const prompt = SPOKEN_PROMPTS.find((item) => item.id === body?.promptId);
+        if (!prompt) return Response.json({ error: "invalid_prompt" }, { status: 400 });
 
-        return new Response(res.body, {
-          headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
-        });
+        const openaiKey = process.env["OPENAI_API_KEY"];
+        const lovableKey = process.env["LOVABLE_API_KEY"];
+        const key = openaiKey || lovableKey;
+        if (!key) return Response.json({ error: "speech_unavailable" }, { status: 503 });
+
+        try {
+          const res = await fetch(
+            openaiKey
+              ? "https://api.openai.com/v1/audio/speech"
+              : "https://ai.gateway.lovable.dev/v1/audio/speech",
+            {
+              method: "POST",
+              headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                model: openaiKey ? "gpt-4o-mini-tts" : "openai/gpt-4o-mini-tts",
+                input: prompt[language],
+                voice: language === "en" ? "coral" : "shimmer",
+                instructions: VOICE_INSTRUCTIONS[language],
+                response_format: "mp3",
+                stream_format: "audio",
+              }),
+              signal: request.signal,
+            },
+          );
+
+          if (!res.ok || !res.body) {
+            console.error("Speech generation failed", res.status);
+            return Response.json({ error: "speech_failed" }, { status: 502 });
+          }
+
+          return new Response(res.body, {
+            headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
+          });
+        } catch (error) {
+          if (!request.signal.aborted) console.error("Speech generation failed", error);
+          return Response.json({ error: "speech_failed" }, { status: 502 });
+        }
       },
     },
   },

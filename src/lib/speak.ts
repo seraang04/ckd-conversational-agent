@@ -1,13 +1,15 @@
-import { localBackend } from "@/lib/ckd-db";
 import { SPOKEN_PROMPTS } from "@/lib/ckd-script";
 import type { Language } from "@/lib/language";
 
 let current: HTMLAudioElement | null = null;
 let currentUrl: string | null = null;
+let currentRequest: AbortController | null = null;
 let generation = 0;
 
 export function stopSpeaking() {
   generation += 1;
+  currentRequest?.abort();
+  currentRequest = null;
   if (typeof window !== "undefined") window.speechSynthesis?.cancel();
   if (current) {
     current.pause();
@@ -50,22 +52,21 @@ function browserSpeak(text: string, language: Language) {
   window.speechSynthesis.speak(utterance);
 }
 
-/** Play the approved question audio. Use the existing speech endpoint for other text. */
+/** Generate approved question audio when it is requested. */
 export async function speak(text: string, language: Language): Promise<void> {
   if (typeof window === "undefined" || !text.trim()) return;
   stopSpeaking();
   const requestGeneration = generation;
   const prompt = SPOKEN_PROMPTS.find((item) => item[language] === text);
   if (prompt) {
-    if (await playAudio(`/audio/questions/${language}/${prompt.id}.mp3?v=2`)) return;
-  }
-
-  if (!localBackend) {
+    const controller = new AbortController();
+    currentRequest = controller;
     try {
       const res = await fetch("/api/speak", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, dialect: language }),
+        body: JSON.stringify({ promptId: prompt.id, language }),
+        signal: controller.signal,
       });
       if (res.ok) {
         const blob = await res.blob();
@@ -73,7 +74,9 @@ export async function speak(text: string, language: Language): Promise<void> {
         if (await playAudio(URL.createObjectURL(blob), true)) return;
       }
     } catch {
-      // Continue with the device voice if the endpoint is unavailable.
+      // Continue with the device voice if live speech is unavailable.
+    } finally {
+      if (currentRequest === controller) currentRequest = null;
     }
   }
   if (requestGeneration === generation) browserSpeak(text, language);

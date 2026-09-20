@@ -33,22 +33,13 @@ supabase status -o env
 
 Apply the SQL only once to a new local database. Put the reported `API_URL` and `ANON_KEY` in the ignored `.env.local` file as `VITE_SUPABASE_URL`, `SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_PUBLISHABLE_KEY`. Question audio, typed answers, and a direct answer summary work locally.
 
-For voice replies, put `OPENAI_API_KEY` in `.env.local` and run `npm run dev:local` with Node.js 22.9 or newer. Spoken answers are sent to OpenAI for transcription. The patient can edit the transcript before saving it; the API key stays on the server. The hosted app continues to use its Lovable speech service when an OpenAI key is not configured.
+For spoken questions and voice replies, put `OPENAI_API_KEY` in `.env.local` and run `npm run dev:local` with Node.js 22.9 or newer. The server sends question text to OpenAI for live speech generation and spoken answers to OpenAI for transcription. The patient can edit the transcript before saving it; the API key stays on the server. The hosted app uses Lovable's managed speech service when an OpenAI key is not configured.
 
 Local development blocks a remote Supabase URL by default. Set `VITE_ALLOW_REMOTE_DEV=true` only when you intentionally want the local browser to access the cloud database. The checked-in migration grants anonymous read and write access to all three CKD tables. Do not enter real patient data until authentication and restrictive row-level policies are implemented and verified.
 
 ### Question audio
 
-The English and Mandarin question audio in `public/audio/questions/` is generated from the fixed script. Playback uses these files on both local and hosted runs, so no patient answers or API key are sent to the text-to-speech service at runtime. If an audio file is unavailable, the app falls back to its speech endpoint or the device voice.
-
-After editing a question, regenerate its audio with Node.js 22.6 or newer:
-
-```sh
-# Put OPENAI_API_KEY in the ignored .env.local file; never use a VITE_ prefix.
-npm run voice:generate -- --force
-```
-
-The generation script calls OpenAI `gpt-4o-mini-tts` with only the fixed question text. It saves MP3 files; the API key stays in `.env.local` and is not bundled into the app. Review new English and Mandarin recordings before using them with patients.
+The app generates each question's speech when it is opened or replayed. `/api/speak` accepts only question IDs from the fixed script, then sends the matching English or Mandarin text to `gpt-4o-mini-tts`. It does not send patient answers to text-to-speech or store generated MP3s in the repository. If the speech service or browser autoplay is unavailable, the patient can use **Hear question**; the app also tries the device voice. Review both languages' live voices before clinical use.
 
 ### Working with the Lovable project
 
@@ -58,7 +49,7 @@ Before merging or publishing:
 
 1. In **Project settings → Git**, check the active synced branch. Work on a separate GitHub branch and review the pull request. Merging into the active branch syncs the code back to Lovable; a PR branch does not change the Lovable editor unless that branch is selected there. See [Lovable Git sync](https://docs.lovable.dev/integrations/github).
 2. Keep the existing tracked `.env` limited to Supabase project identifiers, URLs, and publishable keys. Do not copy `.env.local` into Lovable or commit it. Lovable manages its Cloud project's backend `SUPABASE_*` and `LOVABLE_*` values. Do not put `VITE_*` values in Secrets.
-3. The included MP3 question prompts need no runtime OpenAI key. For transcription, `/api/transcribe` uses Lovable's managed AI key when `OPENAI_API_KEY` is absent. If direct OpenAI transcription is required, add `OPENAI_API_KEY` in **More → Cloud → Secrets**, never as `VITE_OPENAI_API_KEY`. Verify in a Lovable preview that this TanStack server route receives the secret before relying on that path; local `.env.local` does not configure Lovable.
+3. Live question speech and transcription use Lovable's managed AI key when `OPENAI_API_KEY` is absent. If direct OpenAI speech and transcription are required, add `OPENAI_API_KEY` in **More → Cloud → Secrets**, never as `VITE_OPENAI_API_KEY`. Verify in a Lovable preview that these TanStack server routes receive the secret before relying on that path; local `.env.local` does not configure Lovable.
 4. **Do not use real patient data or publish for clinical use yet.** The current Cloud policies allow anonymous users to read, insert, and update every row in all three CKD tables. Add authentication and per-session authorization, replace the open RLS policies, and test access from an unrelated session. Review **More → Cloud → Database → RLS policies** and the [Lovable security guidance](https://docs.lovable.dev/tips-tricks/security-best-practices).
 5. Test English and Mandarin conversation, voice playback, voice transcription, summary review, and Home on the Lovable preview using synthetic answers. The local build and browser checks do not verify Lovable's hosted server environment.
 
