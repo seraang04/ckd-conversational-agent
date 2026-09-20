@@ -6,15 +6,7 @@ import { Check, Lock, Pause, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  BigButton,
-  Card,
-  FooterNote,
-  Notice,
-  Page,
-  SpeakerBadge,
-  inputClass,
-} from "@/components/ckd/ui";
+import { BigButton, Card, FooterNote, Notice, Page, inputClass } from "@/components/ckd/ui";
 import { ConversationTurns } from "@/components/ckd/ConversationTurns";
 import { VoiceAnswer } from "@/components/ckd/VoiceAnswer";
 import { supabase } from "@/integrations/supabase/client";
@@ -472,7 +464,6 @@ function SessionFlow() {
           </button>
         ) : null}
 
-        <Transcript entries={entries} dialect={dialect} />
         <FooterNote />
       </div>
     </Page>
@@ -869,46 +860,5 @@ function Confirmation({
           : t("就这样，交给协调员", "Confirm and send to the coordinator")}
       </BigButton>
     </div>
-  );
-}
-
-function Transcript({ entries, dialect }: { entries: EntryRow[]; dialect: string }) {
-  const t = useText(dialect);
-  if (entries.length === 0) return null;
-  return (
-    <details className="rounded-3xl border border-border bg-card p-5">
-      <summary className="cursor-pointer text-base font-semibold text-foreground">
-        {t("已经记下的话", "Answers recorded so far")} ({entries.length})
-      </summary>
-      <ul className="mt-4 space-y-4">
-        {entries.map((entry) => (
-          <li key={entry.id} className="space-y-1 border-b border-border pb-3 last:border-0">
-            <div className="flex items-center gap-2">
-              <SpeakerBadge speaker={entry.speaker} />
-              {entry.visibility === "private" ? (
-                <span className="rounded-full bg-private-surface px-3 py-1 text-xs font-semibold text-foreground">
-                  {t("私下", "Private")}
-                </span>
-              ) : null}
-              {entry.visibility === "deferred" ? (
-                <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-accent-foreground">
-                  {t("留给协调员", "Deferred")}
-                </span>
-              ) : null}
-            </div>
-            <p className="text-sm text-muted-foreground">
-              {translatedText(entry.question, dialect)}
-            </p>
-            <p className="text-base text-foreground">
-              {entry.visibility === "skipped"
-                ? t("已跳过", "Skipped")
-                : entry.visibility === "deferred"
-                  ? t("留给协调员谈", "Deferred to the coordinator")
-                  : entry.answer}
-            </p>
-          </li>
-        ))}
-      </ul>
-    </details>
   );
 }

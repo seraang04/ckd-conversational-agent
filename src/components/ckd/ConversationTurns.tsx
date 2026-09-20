@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useRef, useState } from "react";
 import { VoiceAnswer } from "./VoiceAnswer";
-import { BigButton, Card, Notice, SpeakerBadge } from "./ui";
+import { BigButton, Card, Notice } from "./ui";
 import { nextConversationTurn } from "@/lib/ckd.functions";
 import { conversationContext, type ConversationScope } from "@/lib/conversation";
 import { SCRIPT, type ScriptQuestion } from "@/lib/ckd-script";
@@ -71,31 +71,6 @@ export function ConversationTurns({
   };
   return (
     <div className="space-y-5">
-      {context.history.length ? (
-        <details className="rounded-2xl border border-border p-4">
-          <summary className="cursor-pointer text-lg font-medium">
-            {t("之前说过的话", "Our conversation so far")}
-          </summary>
-          <div className="mt-4 space-y-4">
-            {entries
-              .filter(
-                (e) =>
-                  context.history.some((h) => h.topic === e.topic) && e.visibility !== "private",
-              )
-              .map((e) => (
-                <div key={e.id} className="space-y-2 border-t border-border pt-4">
-                  <SpeakerBadge speaker={e.speaker} />
-                  <p className="font-medium">
-                    {dialect === "en"
-                      ? (e.question.split(" / ")[1] ?? e.question)
-                      : e.question.split(" / ")[0]}
-                  </p>
-                  <p className="whitespace-pre-wrap">{e.answer}</p>
-                </div>
-              ))}
-          </div>
-        </details>
-      ) : null}
       {turn.isPending || saving ? (
         <Card>
           <p role="status">{t("让我想一想…", "Taking a moment…")}</p>
