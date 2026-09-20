@@ -8,7 +8,9 @@ export async function createSummaryPdf(
 ) {
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
-  const font = await pdf.embedFont(fontBytes, { subset: true });
+  // Preserve the CJK OpenType font's glyph IDs. Subsetting this CFF font can
+  // make PDF viewers display unrelated glyphs instead of the summary text.
+  const font = await pdf.embedFont(fontBytes, { subset: false });
   pdf.setTitle(title);
   let page = pdf.addPage();
   const margin = 48;
