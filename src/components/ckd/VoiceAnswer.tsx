@@ -1,5 +1,5 @@
 import { useText, type Language } from "@/lib/language";
-import { Keyboard, Loader2, Mic, Square, Volume2 } from "lucide-react";
+import { Keyboard, Mic, Square, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BigButton, SpeakerBadge, inputClass, quietActionClass } from "@/components/ckd/ui";
@@ -162,7 +162,7 @@ export function VoiceAnswer({
               disabled={working || busy}
               className={cn(
                 "relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full text-primary-foreground shadow-md transition-colors focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-ring disabled:opacity-60 sm:h-40 sm:w-40",
-                recording || working ? "bg-destructive" : "bg-primary hover:bg-primary/90",
+                recording ? "bg-destructive" : "bg-primary hover:bg-primary/90",
               )}
             >
               {working ? (
