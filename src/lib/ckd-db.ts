@@ -53,13 +53,8 @@ export function makeCode() {
 
 const backendUrl = import.meta.env["VITE_SUPABASE_URL"] ?? "";
 const serviceConfigured = Boolean(backendUrl && import.meta.env["VITE_SUPABASE_PUBLISHABLE_KEY"]);
-export const localBackend =
-  import.meta.env.DEV && /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(backendUrl);
-// A checked-out Lovable .env points at the cloud database. Local development
-// must opt in before it can write there.
-export const remoteDevBlocked =
-  import.meta.env.DEV && !localBackend && import.meta.env["VITE_ALLOW_REMOTE_DEV"] !== "true";
-export const serviceUnavailable = !serviceConfigured || remoteDevBlocked;
+export const localBackend = /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(backendUrl);
+export const serviceUnavailable = !serviceConfigured;
 
 function requireService() {
   if (serviceUnavailable) throw new Error("Conversation service is not configured for this run");
