@@ -33,6 +33,7 @@ import {
   quietActionClass,
 } from "@/components/ckd/ui";
 import { VoiceAnswer } from "@/components/ckd/VoiceAnswer";
+import { ConversationTurns } from "@/components/ckd/ConversationTurns";
 import {
   addConversationEntry,
   fetchSessionBundle,
@@ -42,7 +43,7 @@ import {
   type EntryRow,
   type SummaryRow,
 } from "@/lib/ckd-db";
-import { PATIENT_FLOW, SCRIPT, SENSITIVE_GATE, type ScriptQuestion } from "@/lib/ckd-script";
+import { SCRIPT, SENSITIVE_GATE, type ScriptQuestion } from "@/lib/ckd-script";
 import { buildClinicianSummary, buildSynthesis, checkDistress } from "@/lib/ckd.functions";
 import { speak, stopSpeaking } from "@/lib/speak";
 import { cn } from "@/lib/utils";
@@ -71,8 +72,6 @@ export const Route = createFileRoute("/session/$code")({
 });
 
 const SENSITIVE_QUESTION = SCRIPT.find((q) => q.id === "sensitive-1")!;
-const CAREGIVER_QUESTIONS = SCRIPT.filter((q) => q.section === "caregiver");
-const PATIENT_QUESTIONS = SCRIPT.filter((q) => PATIENT_FLOW.includes(q.section));
 
 type SummaryKey = keyof Pick<
   SummaryRow,
@@ -114,10 +113,6 @@ function SessionFlow() {
 
   const t = useText(language);
 
-  const answered = useMemo(() => new Set(entries.map((e) => e.topic)), [entries]);
-  const nextPatientQuestion = PATIENT_QUESTIONS.find((q) => !answered.has(q.id)) ?? null;
-  const nextCaregiverQuestion = CAREGIVER_QUESTIONS.find((q) => !answered.has(q.id)) ?? null;
-
   const refresh = useCallback(async () => {
     await query.refetch();
   }, [query]);
@@ -149,17 +144,13 @@ function SessionFlow() {
       stage === "paused" ||
       stage === "readiness"
         ? "explore"
-        : stage === "explore" && !nextPatientQuestion
-          ? "gate"
-          : stage === "caregiver" && !nextCaregiverQuestion
-            ? "synthesis"
-            : null;
+        : null;
     if (!stage || !next || transitioningStage.current === stage) return;
     transitioningStage.current = stage;
     void setStage(next).finally(() => {
       transitioningStage.current = null;
     });
-  }, [session?.stage, nextPatientQuestion, nextCaregiverQuestion, setStage]);
+  }, [session?.stage, setStage]);
 
   const saveEntry = useCallback(
     async (
@@ -233,6 +224,32 @@ function SessionFlow() {
       setBusy(false);
     },
     [saveEntry, setStage],
+  );
+
+  const saveConversationEntry = useCallback(
+    async (
+      question: ScriptQuestion,
+      answer: string,
+      mode: "voice" | "typed",
+      who: "patient" | "caregiver",
+      visibility: string,
+    ) => {
+      setBusy(true);
+      try {
+        const saved = await saveEntry(question, answer, mode, who, visibility);
+        if (saved && visibility === "shared" && answer.trim() && !localBackend) {
+          void distressCheck({ data: { answer } })
+            .then(({ distressed }) => {
+              if (distressed) setDistress(true);
+            })
+            .catch(() => undefined);
+        }
+        return saved;
+      } finally {
+        setBusy(false);
+      }
+    },
+    [saveEntry, distressCheck],
   );
 
   if (query.isLoading) {
@@ -331,34 +348,15 @@ function SessionFlow() {
         ) : null}
 
         {session.stage === "explore" ? (
-          nextPatientQuestion ? (
-            <VoiceAnswer
-              key={nextPatientQuestion.id}
-              questionZh={nextPatientQuestion.zh}
-              questionEn={nextPatientQuestion.en}
-              language={language}
-              speaker="patient"
-              busy={busy}
-              onSubmit={(answer, mode) =>
-                void handleAnswer(
-                  nextPatientQuestion,
-                  answer,
-                  mode,
-                  "patient",
-                  "shared",
-                  nextPatientQuestion === PATIENT_QUESTIONS.at(-1) ? "gate" : undefined,
-                )
-              }
-              onSkip={() =>
-                void handleNoAnswer(
-                  nextPatientQuestion,
-                  "patient",
-                  "skipped",
-                  nextPatientQuestion === PATIENT_QUESTIONS.at(-1) ? "gate" : undefined,
-                )
-              }
-            />
-          ) : null
+          <ConversationTurns
+            sessionId={session.id}
+            scope="patient"
+            entries={entries}
+            language={language}
+            speaker="patient"
+            onSave={saveConversationEntry}
+            onComplete={() => void setStage("gate")}
+          />
         ) : null}
 
         {session.stage === "gate" ? (
@@ -431,36 +429,15 @@ function SessionFlow() {
         ) : null}
 
         {session.stage === "caregiver" ? (
-          nextCaregiverQuestion ? (
-            <div className="space-y-4">
-              <VoiceAnswer
-                key={nextCaregiverQuestion.id}
-                questionZh={nextCaregiverQuestion.zh}
-                questionEn={nextCaregiverQuestion.en}
-                language={language}
-                speaker="caregiver"
-                busy={busy}
-                onSubmit={(answer, mode) =>
-                  void handleAnswer(
-                    nextCaregiverQuestion,
-                    answer,
-                    mode,
-                    "caregiver",
-                    "shared",
-                    nextCaregiverQuestion === CAREGIVER_QUESTIONS.at(-1) ? "synthesis" : undefined,
-                  )
-                }
-                onSkip={() =>
-                  void handleNoAnswer(
-                    nextCaregiverQuestion,
-                    "caregiver",
-                    "skipped",
-                    nextCaregiverQuestion === CAREGIVER_QUESTIONS.at(-1) ? "synthesis" : undefined,
-                  )
-                }
-              />
-            </div>
-          ) : null
+          <ConversationTurns
+            sessionId={session.id}
+            scope="caregiver"
+            entries={entries}
+            language={language}
+            speaker="caregiver"
+            onSave={saveConversationEntry}
+            onComplete={() => void setStage("synthesis")}
+          />
         ) : null}
 
         {session.stage === "synthesis" || session.stage === "confirm" ? (
