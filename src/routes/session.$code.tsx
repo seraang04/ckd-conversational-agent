@@ -168,12 +168,6 @@ function SessionFlow() {
         ]);
         setReflection(text);
         if (distressed) setDistress(true);
-        void speak(
-          dialect === "en"
-            ? (text.split("EN:")[1]?.trim() ?? text)
-            : (text.split("EN:")[0] ?? text),
-          dialect,
-        );
       } catch {
         // A missing reflection never blocks the conversation.
       }
