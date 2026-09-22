@@ -36,7 +36,7 @@ test("creates a PDF with English and Chinese summary text", async () => {
 });
 
 test("preserves the bundled CFF font and its glyph IDs for PDF viewers", async () => {
-  const title = "Conversation summary 对话摘要";
+  const title = "对话摘要";
   const bytes = await createSummaryPdf(title, [], fontBytes);
   const pdf = await PDFDocument.load(bytes);
   const page = pdf.getPage(0);
@@ -65,4 +65,30 @@ test("paginates long summaries including Chinese without spaces and long words",
   );
   const pdf = await PDFDocument.load(bytes);
   assert.ok(pdf.getPageCount() > 1);
+});
+
+
+test("uses proportional Latin punctuation and hanging indents for wrapped bullets", async () => {
+  const bytes = await createSummaryPdf(
+    "Conversation summary",
+    [{ heading: "Discuss at your appointment", answers: [
+      "Treatment’s effects on the body. You said “no.” " + "Support at home. ".repeat(20),
+    ] }],
+    fontBytes,
+  );
+  const pdf = await PDFDocument.load(bytes);
+  const page = pdf.getPage(0);
+  const fonts = page.node.Resources().lookup(PDFName.of("Font"));
+  const names = fonts.keys().map((key) => fonts.lookup(key).get(PDFName.of("BaseFont")).toString());
+  assert.ok(names.includes("/Helvetica"));
+  assert.ok(names.includes("/Helvetica-Bold"));
+  assert.equal(new Set(names).size, 2, "English punctuation should not use the CJK font");
+  const contents = page.node.Contents();
+  const commands = Array.from({ length: contents.size() }, (_, index) =>
+    Buffer.from(decodePDFRawStream(contents.lookup(index)).decode()).toString(),
+  ).join("\n");
+  assert.equal((commands.match(/1 0 0 1 52 [\d.]+ Tm/g) ?? []).length, 1, "one bullet marker");
+  assert.ok((commands.match(/1 0 0 1 66 [\d.]+ Tm/g) ?? []).length > 1,
+    "all wrapped answer lines use the text indent");
+  assert.ok(commands.includes("54726561746D656E749273"), "curly apostrophe uses Latin encoding");
 });
