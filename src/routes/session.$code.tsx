@@ -9,7 +9,6 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  Check,
   Download,
   EyeOff,
   House,
@@ -529,18 +528,23 @@ function SessionFlow() {
         ) : null}
 
         {session.stage === "done" ? (
-          <Card className="space-y-4 text-center">
-            <Check className="mx-auto h-14 w-14 text-primary" />
-            <h1 className="text-3xl font-semibold text-foreground">
-              {t("对话已完成", "Conversation complete")}
-            </h1>
+          <Card className="mx-auto max-w-3xl space-y-4 text-left">
+            <div className="flex items-center gap-4 sm:gap-6">
+              <img
+                src={claraMascot}
+                alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
+                className="h-24 w-20 shrink-0 object-contain sm:h-32 sm:w-24"
+              />
+              <div className="min-w-0 space-y-2">
+                <h1 className="text-3xl font-semibold text-foreground">
+                  {t("对话已完成", "Conversation complete")}
+                </h1>
+                <p className="text-lg leading-relaxed text-muted-foreground">
+                  {t("谢谢您今天和我聊聊。", "Thank you for talking with me today.")}
+                </p>
+              </div>
+            </div>
             <p className="text-lg leading-relaxed text-muted-foreground">
-              {t(
-                "谢谢您今天花时间和我聊聊。我们今天的对话到这里就结束了。",
-                "Thank you for taking the time to talk with me today. We’ve reached the end of our conversation.",
-              )}
-            </p>
-            <p className="text-lg text-muted-foreground">
               {hasSummaryContent
                 ? localBackend
                   ? t(
@@ -548,30 +552,24 @@ function SessionFlow() {
                       "Summary saved on this device. It has not been sent to your care team.",
                     )
                   : t(
-                      "您确认的摘要已保存，肾科护理团队可以查看，帮助他们了解您在意的事、担忧和需要的支持。",
-                      "Your confirmed summary has been saved for your kidney care team to review. It will help them understand what matters to you, your concerns, and the support you need.",
+                      "您确认的摘要已保存，供肾科护理团队查看。",
+                      "Your confirmed summary is saved for your kidney care team to review.",
                     )
                 : t(
-                    "这次没有可分享的摘要内容。您仍然可以在下次见面时，直接向肾科护理团队表达您的想法和疑问。",
-                    "There is no summary content to share from this conversation. You can still tell your kidney care team about your thoughts and questions at your next visit.",
+                    "这次没有可分享的摘要内容。",
+                    "There is no summary content to share from this conversation.",
                   )}
             </p>
             <p className="text-lg leading-relaxed text-muted-foreground">
               {hasSummaryContent
                 ? t(
-                    "下次与肾科护理团队见面时，请一起讨论这份摘要。您可以下载摘要并带去，谈谈您的问题，以及不同治疗方案如何适合您的生活。",
-                    "At your next appointment, discuss this summary with your kidney care team. You can download it and bring it along to talk through your questions and how treatment options may fit your life.",
+                    "下次就诊时，请带上摘要，与肾科护理团队讨论您的问题和下一步安排。您不需要现在做决定。",
+                    "Bring your summary to your next appointment to discuss your questions and next steps with your kidney care team. You don’t need to decide now.",
                   )
                 : t(
-                    "下次与肾科护理团队见面时，请和他们谈谈您在意的事，以及不同治疗方案如何适合您的生活。",
-                    "At your next appointment, talk with your kidney care team about what matters to you and how treatment options may fit your life.",
+                    "下次就诊时，请与肾科护理团队讨论您的问题和下一步安排。您不需要现在做决定。",
+                    "At your next appointment, discuss your questions and next steps with your kidney care team. You don’t need to decide now.",
                   )}
-            </p>
-            <p className="text-lg leading-relaxed text-muted-foreground">
-              {t(
-                "您不需要现在做决定。护理团队会和您一起讨论接下来的安排。",
-                "You don’t need to make a treatment decision now. Your care team will discuss the next steps with you.",
-              )}
             </p>
             {summary?.confirmed && hasSummaryContent ? (
               <BigButton
