@@ -21,22 +21,25 @@ export const Route = createFileRoute("/api/speak")({
           return Response.json({ error: "invalid_text" }, { status: 400 });
         }
 
-        // Chinese first tries Clara's Fish Audio voice (a natural young
-        // Mandarin female voice). Keys stay server-side only.
-  const fishKey = process.env["FISH_AUDIO_API_KEY"];
-  const FISH_MODEL = "1c93a9ec5d48496fbe1b92ed4338de2a";
-        if (language === "zh" && fishKey) {
+        // Clara's Fish Audio voices, tried first in both languages:
+        // English uses her warm young English voice; Chinese uses a natural
+        // young Mandarin female voice. Keys stay server-side only.
+        const fishAttempt =
+          language === "zh"
+            ? { key: process.env["FISH_AUDIO_API_KEY"], model: "1c93a9ec5d48496fbe1b92ed4338de2a" }
+            : { key: process.env["FISH_AUDIO_API_KEY_EN"], model: "bd8b049828ab44dc9b692f83a4e8b15d" };
+        if (fishAttempt.key) {
           try {
             const res = await fetch("https://api.fish.audio/v1/tts", {
               method: "POST",
               headers: {
-                Authorization: `Bearer ${fishKey}`,
+                Authorization: `Bearer ${fishAttempt.key}`,
                 "Content-Type": "application/json",
                 model: "s2.1-pro-free",
               },
               body: JSON.stringify({
                 text: spoken,
-                reference_id: FISH_MODEL,
+                reference_id: fishAttempt.model,
                 format: "mp3",
                 mp3_bitrate: 128,
                 normalize: true,
