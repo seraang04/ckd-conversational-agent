@@ -39,9 +39,13 @@ export function ConversationTurns({
   const plan = useServerFn(nextConversationTurn);
   const [saving, setSaving] = useState(false);
   const [advanceFailed, setAdvanceFailed] = useState(false);
+  const [introducedConversation, setIntroducedConversation] = useState<string | null>(null);
   const savingRef = useRef(false);
   const completedRef = useRef(false);
   const context = conversationContext(scope, entries);
+  const conversationKey = `${sessionId}:${scope}`;
+  const needsIntroduction =
+    context.history.length === 0 && introducedConversation !== conversationKey;
   const historyKey = JSON.stringify(context.history);
   const turn = useQuery({
     queryKey: ["conversation-turn", sessionId, scope, historyKey],
@@ -49,6 +53,7 @@ export function ConversationTurns({
     staleTime: Infinity,
     retry: false,
     refetchOnWindowFocus: false,
+    enabled: !needsIntroduction,
   });
   const next = turn.data;
 
@@ -63,8 +68,8 @@ export function ConversationTurns({
   }, [onComplete]);
 
   useEffect(() => {
-    if (next?.complete) void advance();
-  }, [next?.complete, advance]);
+    if (!needsIntroduction && next?.complete) void advance();
+  }, [needsIntroduction, next?.complete, advance]);
 
   const submit = async (answer: string, mode: "voice" | "typed", visibility: string) => {
     if (!next || savingRef.current) return;
@@ -85,6 +90,42 @@ export function ConversationTurns({
       setSaving(false);
     }
   };
+
+  if (needsIntroduction) {
+    return (
+      <Card className="mx-auto max-w-3xl space-y-5">
+        <h1 className="text-3xl font-semibold text-foreground">
+          {t("您好，我是 Clara。", "Hello, I’m Clara.")}
+        </h1>
+        <p className="text-lg leading-relaxed text-muted-foreground">
+          {scope === "patient"
+            ? t(
+                "我会陪您想一想，不同的肾脏治疗方案如何适合您的日常生活，为您下次和肾科护理团队的讨论做准备。",
+                "I’ll help you think through how different kidney treatment options may fit your daily life, ahead of your next conversation with your kidney care team.",
+              )
+            : t(
+                "我会陪您从照顾者的角度想一想，不同的肾脏治疗方案如何适合病人的日常生活，为接下来和肾科护理团队的讨论做准备。",
+                "I’ll help you think through how different kidney treatment options may fit the patient’s daily life from your perspective as a caregiver, ahead of the next conversation with the kidney care team.",
+              )}
+        </p>
+        <p className="text-lg leading-relaxed text-muted-foreground">
+          {t(
+            "我们会聊聊您在意的事、担忧、日常安排，以及可以得到的支持。您分享的内容会帮助护理团队了解您的想法，一起讨论治疗选择。",
+            "We’ll talk about what matters to you, any worries, daily routines, and available support. What you share will help the care team understand your perspective when discussing treatment choices together.",
+          )}
+        </p>
+        <p className="text-lg leading-relaxed text-muted-foreground">
+          {t(
+            "我们可以慢慢来，您可以跳过任何问题。现在不需要做决定。我是对话伙伴，不是医生。",
+            "We can take this slowly, and you can skip any question. You don’t need to make a decision now. I’m a conversation companion, not a clinician.",
+          )}
+        </p>
+        <BigButton onClick={() => setIntroducedConversation(conversationKey)}>
+          {t("开始聊聊", "Let’s begin")}
+        </BigButton>
+      </Card>
+    );
+  }
 
   if (next?.complete && advanceFailed) {
     return (

@@ -304,6 +304,23 @@ function SessionFlow() {
     [saveEntry, screenAnswer, session?.stage],
   );
 
+  if (safety || session?.stage === "safety_review") {
+    return (
+      <Page language={language} minimalHeader>
+        <SafetySupport
+          language={language}
+          unavailable={safety === "unavailable" && session?.stage !== "safety_review"}
+          saved={safetySaved || session?.stage === "safety_review"}
+          onRetry={() => {
+            if (busy) return;
+            if (safety === "risk" || session?.stage === "safety_review") void persistSafety();
+            else retrySafety.current();
+          }}
+        />
+      </Page>
+    );
+  }
+
   if (query.isLoading) {
     return (
       <Page language={requestedLanguage ?? "en"} minimalHeader>
@@ -349,23 +366,6 @@ function SessionFlow() {
   }
 
   const isCaregiverStage = session.stage === "caregiver";
-  if (safety || session.stage === "safety_review") {
-    return (
-      <Page language={language} minimalHeader>
-        <SafetySupport
-          language={language}
-          unavailable={safety === "unavailable" && session.stage !== "safety_review"}
-          saved={safetySaved || session.stage === "safety_review"}
-          onRetry={() => {
-            if (busy) return;
-            if (safety === "risk" || session.stage === "safety_review") void persistSafety();
-            else retrySafety.current();
-          }}
-        />
-      </Page>
-    );
-  }
-
   const summary = bundle?.summary;
   const hasSummaryContent = summary
     ? SUMMARY_SECTIONS.some((section) => (summary[section.key]?.length ?? 0) > 0)

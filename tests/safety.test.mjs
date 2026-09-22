@@ -17,7 +17,7 @@ test("explicit English, Chinese, and mixed-language danger interrupts even witho
     "我不想活了",
     "我想自殺",
     "I feel 很累，想死",
-    "My father says he will kill myself",
+    "My father said: I want to die",
   ]) {
     assert.deepEqual(
       await assessSafety(answer, () => {
