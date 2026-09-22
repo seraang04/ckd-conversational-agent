@@ -21,6 +21,41 @@ export const Route = createFileRoute("/api/speak")({
           return Response.json({ error: "invalid_text" }, { status: 400 });
         }
 
+        // Chinese first tries Clara's Fish Audio voice (a natural young
+        // Mandarin female voice). Keys stay server-side only.
+        const fishKey = process.env["FISH_AUDIO_API_KEY"];
+        const FISH_MODEL = "af3ae80581b44053bd207f1693bdc3a6";
+        if (language === "zh" && fishKey) {
+          try {
+            const res = await fetch("https://api.fish.audio/v1/tts", {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${fishKey}`,
+                "Content-Type": "application/json",
+                model: "s1",
+              },
+              body: JSON.stringify({
+                text: spoken,
+                reference_id: FISH_MODEL,
+                format: "mp3",
+                mp3_bitrate: 128,
+                normalize: true,
+                latency: "normal",
+              }),
+              signal: request.signal,
+            });
+            if (res.ok && res.body) {
+              return new Response(res.body, {
+                headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
+              });
+            }
+            console.error("Fish Audio speech failed", res.status, await res.text());
+          } catch (error) {
+            if (request.signal.aborted) return new Response(null, { status: 204 });
+            console.error("Fish Audio speech failed", error);
+          }
+        }
+
         // Clara's ElevenLabs voice. The API keys stay server-side only.
         // English uses the main key/voice; Chinese first tries the dedicated
         // Chinese-voice key and voice ID, then falls back to the main
