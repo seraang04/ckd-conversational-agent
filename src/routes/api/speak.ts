@@ -3,8 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 type SpeakBody = { text?: unknown; language?: unknown };
 
 const VOICE_INSTRUCTIONS = {
-  en: "Speak as Clara, a warm young adult female conversation companion. Use a soft, gentle, feminine voice with clear Singapore English and a light, natural local cadence. Sound compassionate, patient and reassuring, never clinical, childish, overly cheerful or breathy. Speak slightly slowly, with comfortable pauses and a softly lifted tone when asking a question. Do not add or change words.",
-  zh: "请以 Clara 的身份说话。使用年轻女性柔和、亲切的声音，以清晰自然的新加坡华语表达。语气要有耐心、有同理心、让长者安心；不要像临床播报，也不要幼稚、过度活泼或气声太重。语速稍慢，在句子间自然停顿，提问时语调轻柔。不要增删文字。",
+  en: "Speak as Clara, a kind 18-to-20-year-old female conversation companion. Use a youthful, soft, naturally feminine voice with warm Singapore English and a light local cadence. Speak as though sitting beside an older person who deserves time and care: compassionate, gentle, patient, and reassuring. Never sound serious, formal, clinical, stern, robotic, childish, overly cheerful, or breathy. Keep a relaxed, slightly slow pace, use comfortable pauses, and let each question land as a warm invitation rather than an interview. End questions with a soft, friendly lift. Do not add or change words.",
+  zh: "请以 Clara 的身份说话。声音像一位十八至二十岁的年轻女性，柔和、自然、亲切，以温暖的新加坡华语表达。就像坐在长者身边陪他慢慢说话一样：有耐心、有同理心、让人安心。不要严肃、正式、临床、强硬、机械、幼稚、过度活泼或气声太重。语速放松并稍慢，句子间自然停顿，把每个问题说成温柔的邀请，而不是问话。提问结尾轻柔友善。不要增删文字。",
 } as const;
 
 export const Route = createFileRoute("/api/speak")({
@@ -60,8 +60,9 @@ export const Route = createFileRoute("/api/speak")({
               body: JSON.stringify({
                 model: provider.model,
                 input: spoken,
-                voice: language === "en" ? "coral" : "shimmer",
+                voice: "shimmer",
                 instructions: VOICE_INSTRUCTIONS[language],
+                speed: language === "en" ? 0.92 : 0.88,
                 response_format: "mp3",
                 stream_format: "audio",
               }),
