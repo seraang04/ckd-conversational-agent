@@ -32,7 +32,7 @@ export const Route = createFileRoute("/api/speak")({
               headers: {
                 Authorization: `Bearer ${fishKey}`,
                 "Content-Type": "application/json",
-                model: "s1",
+                model: "s2.1-pro-free",
               },
               body: JSON.stringify({
                 text: spoken,
