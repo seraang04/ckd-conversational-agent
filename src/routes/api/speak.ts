@@ -3,8 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 type SpeakBody = { text?: unknown; language?: unknown };
 
 const VOICE_INSTRUCTIONS = {
-  en: "Speak in clear Singapore English with a light, natural local cadence. Sound warm, calm and conversational. Ask the question at an everyday pace. Do not add or change words.",
-  zh: "请用清晰、自然的新加坡华语发问。语气亲切、温暖，语速自然，适当停顿。不要增删文字。",
+  en: "Speak as Clara, a warm young adult female conversation companion. Use a soft, gentle, feminine voice with clear Singapore English and a light, natural local cadence. Sound compassionate, patient and reassuring, never clinical, childish, overly cheerful or breathy. Speak slightly slowly, with comfortable pauses and a softly lifted tone when asking a question. Do not add or change words.",
+  zh: "请以 Clara 的身份说话。使用年轻女性柔和、亲切的声音，以清晰自然的新加坡华语表达。语气要有耐心、有同理心、让长者安心；不要像临床播报，也不要幼稚、过度活泼或气声太重。语速稍慢，在句子间自然停顿，提问时语调轻柔。不要增删文字。",
 } as const;
 
 export const Route = createFileRoute("/api/speak")({
