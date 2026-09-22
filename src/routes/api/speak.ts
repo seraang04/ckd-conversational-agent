@@ -30,7 +30,7 @@ export const Route = createFileRoute("/api/speak")({
         const MAIN_VOICE = "vGsgKCTg5Qu072vRGiR5";
         const zhAttempts =
           zhElevenKey && language === "zh"
-            ? [{ key: zhElevenKey, voiceId: "9lHjugDhwqoxA5MhX0az" }]
+            ? [{ key: zhElevenKey, voiceId: "zmcVlqmyk3Jpn5AVYcAL" }]
             : [];
         const elevenAttempts =
           language === "zh"
