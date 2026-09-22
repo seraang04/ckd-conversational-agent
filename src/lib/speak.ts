@@ -54,15 +54,21 @@ async function playAudio(url: string, objectUrl = false): Promise<boolean> {
 function browserSpeak(text: string, language: Language) {
   if (!window.speechSynthesis) return;
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = language === "en" ? "en-SG" : "zh-CN";
-  utterance.rate = language === "en" ? 0.88 : 0.84;
-  utterance.pitch = 1.14;
+  utterance.lang = language === "en" ? "en-SG" : "zh-SG";
+  utterance.rate = language === "en" ? 0.9 : 0.86;
+  utterance.pitch = 1.1;
   utterance.volume = 0.92;
 
   const voices = window.speechSynthesis.getVoices();
-  const preferredNames = /female|samantha|tingting|sin-ji|xiaoxiao|huihui|mei-jia|serena|zira|siri/i;
+  const preferredNames = /female|sin-ji|tingting|xiaoxiao|huihui|mei-jia|serena|samantha|zira|siri/i;
   const languagePrefix = language === "en" ? "en" : "zh";
+  const preferredLocale = language === "en" ? "en-sg" : "zh-sg";
   const localVoice =
+    voices.find(
+      (voice) =>
+        voice.lang.toLowerCase() === preferredLocale && preferredNames.test(voice.name),
+    ) ??
+    voices.find((voice) => voice.lang.toLowerCase() === preferredLocale) ??
     voices.find(
       (voice) =>
         voice.lang.toLowerCase().startsWith(languagePrefix) && preferredNames.test(voice.name),
