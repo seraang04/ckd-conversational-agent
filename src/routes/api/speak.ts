@@ -21,10 +21,18 @@ export const Route = createFileRoute("/api/speak")({
           return Response.json({ error: "invalid_text" }, { status: 400 });
         }
 
-        // Clara's ElevenLabs voice. The API key stays server-side only.
-        const elevenKey = process.env["ELEVENLABS_API_KEY"];
+        // Clara's ElevenLabs voice. The API keys stay server-side only.
+        // English uses the main key/voice; Chinese uses the dedicated
+        // Chinese-voice key and voice ID (falling back to the main key).
+        const elevenKey =
+          language === "zh"
+            ? (process.env["ELEVENLABS_API_KEY_ZH"] ?? process.env["ELEVENLABS_API_KEY"])
+            : process.env["ELEVENLABS_API_KEY"];
         if (elevenKey) {
-          const voiceId = "vGsgKCTg5Qu072vRGiR5";
+          const voiceId =
+            language === "zh" && process.env["ELEVENLABS_API_KEY_ZH"]
+              ? "9lHjugDhwqoxA5MhX0az"
+              : "vGsgKCTg5Qu072vRGiR5";
           try {
             const res = await fetch(
               `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=mp3_44100_128`,
