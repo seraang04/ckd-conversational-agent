@@ -55,6 +55,19 @@ function browserSpeak(text: string, language: Language) {
   if (!window.speechSynthesis) return;
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = language === "en" ? "en-SG" : "zh-CN";
+  utterance.rate = language === "en" ? 0.9 : 0.86;
+  utterance.pitch = 1.08;
+  utterance.volume = 0.95;
+
+  const voices = window.speechSynthesis.getVoices();
+  const preferredNames = /female|samantha|tingting|sin-ji|xiaoxiao|huihui|mei-jia|serena|zira/i;
+  const languagePrefix = language === "en" ? "en" : "zh";
+  const localVoice =
+    voices.find(
+      (voice) =>
+        voice.lang.toLowerCase().startsWith(languagePrefix) && preferredNames.test(voice.name),
+    ) ?? voices.find((voice) => voice.lang.toLowerCase().startsWith(languagePrefix));
+  if (localVoice) utterance.voice = localVoice;
   window.speechSynthesis.speak(utterance);
 }
 
