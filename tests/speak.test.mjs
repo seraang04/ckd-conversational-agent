@@ -11,6 +11,8 @@ const { speak, stopSpeaking } = await import(
   `data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`
 );
 
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 test("speech cancels stale requests and keeps only one player active", async (t) => {
   const requests = [];
   const players = [];
@@ -53,15 +55,20 @@ test("speech cancels stale requests and keeps only one player active", async (t)
   });
   const response = { ok: true, blob: async () => new Blob(["audio"]) };
 
+  // The second utterance cancels the first request before it resolves.
   const first = speak("First", "en");
   const second = speak("Second", "en");
   assert.equal(requests[0].signal.aborted, true);
   requests[1].resolve(response);
-  await second;
-  requests[0].resolve(response); // Simulate a response that ignores cancellation.
-  await first;
+  await tick(); // the queued sentence starts playing
   assert.equal(players.length, 1);
   assert.equal(players[0].playing, true);
+  players[0].onended(); // playback finishes, then the utterance resolves
+  await second;
+  requests[0].resolve(response); // A response that ignores cancellation.
+  await first;
+  assert.equal(players.length, 1);
+  assert.equal(players[0].playing, false);
 
   const third = speak("Third", "en");
   assert.equal(players[0].playing, false);
@@ -79,7 +86,7 @@ test("speech cancels stale requests and keeps only one player active", async (t)
         resolveBlob = resolve;
       }),
   });
-  await Promise.resolve();
+  await tick();
   stopSpeaking();
   resolveBlob(new Blob(["audio"]));
   await fourth;
@@ -87,14 +94,17 @@ test("speech cancels stale requests and keeps only one player active", async (t)
 
   const fifth = speak("Fifth", "en");
   requests[4].resolve(response);
-  await fifth;
+  await tick();
+  assert.equal(players[1].playing, true);
   players[1].onended();
+  await fifth;
   assert.equal(players[1].playing, false);
   const sixth = speak("Sixth", "zh");
   requests[5].resolve(response);
-  await sixth;
+  await tick();
   assert.equal(players[2].playing, true);
-  players[2].onerror();
+  players[2].onerror(); // A failed chunk hands the rest to the device voice.
+  await sixth;
   assert.equal(players[2].playing, false);
   assert.deepEqual(revoked, ["blob:0", "blob:1", "blob:2"]);
 });
