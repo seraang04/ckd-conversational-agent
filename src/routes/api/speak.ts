@@ -21,6 +21,45 @@ export const Route = createFileRoute("/api/speak")({
           return Response.json({ error: "invalid_text" }, { status: 400 });
         }
 
+        // Clara's ElevenLabs voice. The API key stays server-side only.
+        const elevenKey = process.env["ELEVENLABS_API_KEY"];
+        if (elevenKey) {
+          const voiceId = "vGsgKCTg5Qu072vRGiR5";
+          try {
+            const res = await fetch(
+              `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=mp3_44100_128`,
+              {
+                method: "POST",
+                headers: {
+                  "xi-api-key": elevenKey,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  text: spoken,
+                  model_id: "eleven_multilingual_v2",
+                  voice_settings: {
+                    stability: 0.45,
+                    similarity_boost: 0.8,
+                    style: 0.35,
+                    use_speaker_boost: true,
+                    speed: language === "en" ? 0.95 : 0.92,
+                  },
+                }),
+                signal: request.signal,
+              },
+            );
+            if (res.ok && res.body) {
+              return new Response(res.body, {
+                headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
+              });
+            }
+            console.error("ElevenLabs speech failed", res.status, await res.text());
+          } catch (error) {
+            if (request.signal.aborted) return new Response(null, { status: 204 });
+            console.error("ElevenLabs speech failed", error);
+          }
+        }
+
         const openaiKey = process.env["OPENAI_API_KEY"];
         const lovableKey = process.env["LOVABLE_API_KEY"];
 
