@@ -3,8 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 type SpeakBody = { text?: unknown; language?: unknown };
 
 const VOICE_INSTRUCTIONS = {
-  en: "Speak as Clara, a kind 18-to-20-year-old female conversation companion. Use a youthful, soft, naturally feminine voice with warm Singapore English and a light local cadence. Speak as though sitting beside an older person who deserves time and care: compassionate, gentle, patient, and reassuring. Never sound serious, formal, clinical, stern, robotic, childish, overly cheerful, or breathy. Keep a relaxed, slightly slow pace, use comfortable pauses, and let each question land as a warm invitation rather than an interview. End questions with a soft, friendly lift. Do not add or change words.",
-  zh: "请以 Clara 的身份说话。声音像一位十八至二十岁的年轻女性，柔和、自然、亲切，以温暖的新加坡华语表达。就像坐在长者身边陪他慢慢说话一样：有耐心、有同理心、让人安心。不要严肃、正式、临床、强硬、机械、幼稚、过度活泼或气声太重。语速放松并稍慢，句子间自然停顿，把每个问题说成温柔的邀请，而不是问话。提问结尾轻柔友善。不要增删文字。",
+  en: "Speak as Clara, a warm Singaporean Chinese young woman around 18 to 20 years old. Use a genuinely youthful, soft, naturally feminine Asian voice with clear Singapore English and a gentle, familiar local cadence. Sound like a caring younger granddaughter or nursing student sitting beside an older Singaporean: kind, compassionate, patient, respectful, and reassuring. Keep the accent natural and subtle; never exaggerate Singlish or sound Western, formal, clinical, stern, robotic, childish, overly cheerful, theatrical, or breathy. Use a relaxed, slightly slow pace, comfortable pauses, and a light friendly warmth. Let each question feel like a caring invitation, with a soft upward lift at the end. Do not add or change words.",
+  zh: "请以 Clara 的身份说话。声音像一位十八至二十岁的新加坡华人年轻女性，年轻、柔和、自然、有亲切感，以清楚温暖的新加坡华语和自然的本地语调表达。感觉像一位关心长辈的年轻孙女或护理学生坐在身边慢慢陪他说话：体贴、有耐心、尊重、让人安心。保留轻柔自然的新加坡口音，不要刻意夸张，也不要像中国播音腔。不要严肃、正式、临床、强硬、机械、幼稚、过度活泼、戏剧化或气声太重。语速放松并稍慢，句子间自然停顿，把每个问题说成关心而温柔的邀请。提问结尾轻柔友善。不要增删文字。",
 } as const;
 
 export const Route = createFileRoute("/api/speak")({
@@ -60,9 +60,9 @@ export const Route = createFileRoute("/api/speak")({
               body: JSON.stringify({
                 model: provider.model,
                 input: spoken,
-                voice: "shimmer",
+                voice: "coral",
                 instructions: VOICE_INSTRUCTIONS[language],
-                speed: language === "en" ? 0.92 : 0.88,
+                speed: language === "en" ? 0.94 : 0.9,
                 response_format: "mp3",
                 stream_format: "audio",
               }),
