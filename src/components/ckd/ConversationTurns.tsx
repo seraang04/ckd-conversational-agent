@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useRef, useState } from "react";
+import claraMascot from "@/assets/clara-mascot.png";
 
 import { VoiceAnswer } from "./VoiceAnswer";
 import { BigButton, Card, MicPending, Notice } from "./ui";
@@ -94,9 +95,16 @@ export function ConversationTurns({
   if (needsIntroduction) {
     return (
       <Card className="mx-auto max-w-3xl space-y-5">
-        <h1 className="text-3xl font-semibold text-foreground">
-          {t("您好，我是 Clara。", "Hello, I’m Clara.")}
-        </h1>
+        <div className="flex items-center gap-4 sm:gap-6">
+          <img
+            src={claraMascot}
+            alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
+            className="h-24 w-20 shrink-0 object-contain sm:h-32 sm:w-24"
+          />
+          <h1 className="min-w-0 text-3xl font-semibold text-foreground">
+            {t("您好，我是 Clara。", "Hello, I’m Clara.")}
+          </h1>
+        </div>
         <p className="text-lg leading-relaxed text-muted-foreground">
           {scope === "patient"
             ? t(
