@@ -21,17 +21,32 @@ export const Route = createFileRoute("/api/speak")({
           return Response.json({ error: "invalid_text" }, { status: 400 });
         }
 
-        // Clara's ElevenLabs voice. The API key stays server-side only.
-        const elevenKey = process.env["ELEVENLABS_API_KEY"];
-        if (elevenKey) {
-          const voiceId = "vGsgKCTg5Qu072vRGiR5";
+        // Clara's ElevenLabs voice. The API keys stay server-side only.
+        // English uses the main key/voice; Chinese first tries the dedicated
+        // Chinese-voice key and voice ID, then falls back to the main
+        // ElevenLabs voice before leaving ElevenLabs entirely.
+        const mainElevenKey = process.env["ELEVENLABS_API_KEY"];
+        const zhElevenKey = process.env["ELEVENLABS_API_KEY_ZH"];
+        const MAIN_VOICE = "vGsgKCTg5Qu072vRGiR5";
+        const zhAttempts =
+          zhElevenKey && language === "zh"
+            ? [{ key: zhElevenKey, voiceId: "9lHjugDhwqoxA5MhX0az" }]
+            : [];
+        const elevenAttempts =
+          language === "zh"
+            ? [...zhAttempts, ...(mainElevenKey ? [{ key: mainElevenKey, voiceId: MAIN_VOICE }] : [])]
+            : mainElevenKey
+              ? [{ key: mainElevenKey, voiceId: MAIN_VOICE }]
+              : [];
+
+        for (const attempt of elevenAttempts) {
           try {
             const res = await fetch(
-              `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=mp3_44100_128`,
+              `https://api.elevenlabs.io/v1/text-to-speech/${attempt.voiceId}/stream?output_format=mp3_44100_128`,
               {
                 method: "POST",
                 headers: {
-                  "xi-api-key": elevenKey,
+                  "xi-api-key": attempt.key,
                   "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
