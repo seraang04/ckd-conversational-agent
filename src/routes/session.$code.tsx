@@ -534,6 +534,12 @@ function SessionFlow() {
             <h1 className="text-3xl font-semibold text-foreground">
               {t("对话已完成", "Conversation complete")}
             </h1>
+            <p className="text-lg leading-relaxed text-muted-foreground">
+              {t(
+                "谢谢您今天花时间和我聊聊。我们今天的对话到这里就结束了。",
+                "Thank you for taking the time to talk with me today. We’ve reached the end of our conversation.",
+              )}
+            </p>
             <p className="text-lg text-muted-foreground">
               {hasSummaryContent
                 ? localBackend
@@ -541,8 +547,31 @@ function SessionFlow() {
                       "摘要已保存在这台设备，尚未发送给护理团队。",
                       "Summary saved on this device. It has not been sent to your care team.",
                     )
-                  : t("摘要已保存，护理团队可以查看。", "Summary saved for your care team.")
-                : t("没有保存回答。", "No answers were saved.")}
+                  : t(
+                      "您确认的摘要已保存，肾科护理团队可以查看，帮助他们了解您在意的事、担忧和需要的支持。",
+                      "Your confirmed summary has been saved for your kidney care team to review. It will help them understand what matters to you, your concerns, and the support you need.",
+                    )
+                : t(
+                    "这次没有可分享的摘要内容。您仍然可以在下次见面时，直接向肾科护理团队表达您的想法和疑问。",
+                    "There is no summary content to share from this conversation. You can still tell your kidney care team about your thoughts and questions at your next visit.",
+                  )}
+            </p>
+            <p className="text-lg leading-relaxed text-muted-foreground">
+              {hasSummaryContent
+                ? t(
+                    "下次与肾科护理团队见面时，请一起讨论这份摘要。您可以下载摘要并带去，谈谈您的问题，以及不同治疗方案如何适合您的生活。",
+                    "At your next appointment, discuss this summary with your kidney care team. You can download it and bring it along to talk through your questions and how treatment options may fit your life.",
+                  )
+                : t(
+                    "下次与肾科护理团队见面时，请和他们谈谈您在意的事，以及不同治疗方案如何适合您的生活。",
+                    "At your next appointment, talk with your kidney care team about what matters to you and how treatment options may fit your life.",
+                  )}
+            </p>
+            <p className="text-lg leading-relaxed text-muted-foreground">
+              {t(
+                "您不需要现在做决定。护理团队会和您一起讨论接下来的安排。",
+                "You don’t need to make a treatment decision now. Your care team will discuss the next steps with you.",
+              )}
             </p>
             {summary?.confirmed && hasSummaryContent ? (
               <BigButton

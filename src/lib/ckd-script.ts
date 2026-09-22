@@ -5,14 +5,35 @@ export type ScriptQuestion = {
   section: Section;
   zh: string;
   en: string;
+  choices?: { zh: string; en: string }[];
 };
 
 export const SCRIPT: ScriptQuestion[] = [
   {
     id: "values-1",
+    choices: [
+      { zh: "和家人相处", en: "Time with family" },
+      { zh: "保持独立", en: "Staying independent" },
+      { zh: "继续工作或喜欢的活动", en: "Continuing work or activities I enjoy" },
+      { zh: "感觉舒适", en: "Feeling comfortable" },
+      { zh: "其他或还不确定", en: "Something else or not sure yet" },
+    ],
     section: "values",
     zh: "我们慢慢来。您愿意和我说说，现在生活里什么对您最重要吗？",
     en: "We can take this slowly. What matters most to you in your life right now?",
+  },
+  {
+    id: "values-2",
+    section: "values",
+    zh: "在家接受治疗对您有多重要？",
+    en: "How important is receiving treatment at home to you?",
+    choices: [
+      { zh: "不重要", en: "Not important" },
+      { zh: "有点重要", en: "A little important" },
+      { zh: "比较重要", en: "Quite important" },
+      { zh: "非常重要", en: "Very important" },
+      { zh: "还不确定", en: "Not sure yet" },
+    ],
   },
   {
     id: "values-3",
@@ -22,6 +43,14 @@ export const SCRIPT: ScriptQuestion[] = [
   },
   {
     id: "worries-1",
+    choices: [
+      { zh: "治疗对身体的影响", en: "How treatment may affect my body" },
+      { zh: "对日常生活的影响", en: "Changes to everyday life" },
+      { zh: "费用", en: "Costs" },
+      { zh: "对家人的影响", en: "Impact on family" },
+      { zh: "其他或还不确定", en: "Something else or not sure yet" },
+      { zh: "目前没有担忧", en: "No worries at the moment" },
+    ],
     section: "worries",
     zh: "想到接下来的治疗，心里可能会有些担心。您愿意说说最让您挂心的是什么吗？",
     en: "Thinking about treatment can bring up worries. What feels most concerning to you?",
@@ -52,6 +81,14 @@ export const SCRIPT: ScriptQuestion[] = [
   },
   {
     id: "caregiver-3",
+    choices: [
+      { zh: "时间与日常安排", en: "Time and daily routines" },
+      { zh: "照顾时需要的帮助", en: "Help with caregiving" },
+      { zh: "自己的身心健康", en: "My own wellbeing" },
+      { zh: "费用", en: "Costs" },
+      { zh: "其他或还不确定", en: "Something else or not sure yet" },
+      { zh: "目前没有担忧", en: "No worries at the moment" },
+    ],
     section: "caregiver",
     zh: "照顾病人的过程中，有什么事情是您比较挂心的吗？",
     en: "As you care for them, is there anything that's been weighing on your mind?",

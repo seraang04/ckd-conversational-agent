@@ -126,8 +126,8 @@ export function ConversationTurns({
         </p>
         <p className="text-lg leading-relaxed text-muted-foreground">
           {t(
-            "我们可以慢慢来，您可以跳过任何问题。现在不需要做决定。我是对话伙伴，不是医生。",
-            "We can take this slowly, and you can skip any question. You don’t need to make a decision now. I’m a conversation companion, not a clinician.",
+            "我们可以慢慢来。有些问题会提供选项，您也可以打字或用语音补充，或跳过任何问题。现在不需要做决定。我是对话伙伴，不是医生。",
+            "We can take this slowly. Some questions offer choices, and you can add your own thoughts by typing or speaking, or skip any question. You don’t need to make a decision now. I’m a conversation companion, not a clinician.",
           )}
         </p>
         <BigButton onClick={() => setIntroducedConversation(conversationKey)}>
@@ -154,7 +154,7 @@ export function ConversationTurns({
     );
   }
 
-  if (turn.isPending || saving || next?.complete) {
+  if (turn.isPending || next?.complete) {
     return (
       <section className="mx-auto grid min-h-[calc(100dvh-8rem)] w-full max-w-3xl grid-rows-[minmax(11rem,auto)_minmax(14rem,1fr)_auto] gap-4 py-3 sm:min-h-[calc(100dvh-9rem)] sm:grid-rows-[minmax(11rem,auto)_minmax(16rem,1fr)_auto] sm:py-4">
         <div className="space-y-4" aria-hidden>
@@ -192,6 +192,11 @@ export function ConversationTurns({
       ) : null}
       <VoiceAnswer
         key={historyKey}
+        choices={
+          context.history.some((entry) => entry.topic === next.topic)
+            ? undefined
+            : SCRIPT.find((question) => question.id === next.topic)?.choices
+        }
         acknowledgementZh={next.acknowledgementZh}
         acknowledgementEn={next.acknowledgementEn}
         questionZh={next.questionZh}

@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 type Props = {
   acknowledgementZh?: string;
   acknowledgementEn?: string;
+  choices?: { zh: string; en: string }[] | undefined;
   questionZh: string;
   questionEn: string;
   language: Language;
@@ -28,6 +29,7 @@ function elapsedTime(seconds: number) {
 }
 
 export function VoiceAnswer({
+  choices,
   acknowledgementZh,
   acknowledgementEn,
   questionZh,
@@ -43,6 +45,7 @@ export function VoiceAnswer({
   const question = language === "en" ? questionEn : questionZh;
   const acknowledgement = language === "en" ? acknowledgementEn : acknowledgementZh;
   const spokenTurn = acknowledgement ? `${acknowledgement} ${question}` : question;
+  const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
   const [recording, setRecording] = useState(false);
   const [working, setWorking] = useState(false);
@@ -55,6 +58,7 @@ export function VoiceAnswer({
   const autoplayTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
+    setSelectedChoice(null);
     setDraft("");
     setTyping(false);
     setAnswerMode("typed");
@@ -129,7 +133,7 @@ export function VoiceAnswer({
     }
   }, [language, t]);
 
-  const showRecorder = recording || working || (!draft && !typing);
+  const showRecorder = recording || working || (!choices && !draft && !typing);
 
   return (
     <section className="mx-auto grid min-h-[calc(100dvh-8rem)] w-full max-w-3xl grid-rows-[minmax(11rem,auto)_minmax(14rem,1fr)_auto] gap-4 py-3 sm:min-h-[calc(100dvh-9rem)] sm:grid-rows-[minmax(11rem,auto)_minmax(16rem,1fr)_auto] sm:py-4">
@@ -173,77 +177,130 @@ export function VoiceAnswer({
         </button>
       </div>
 
-      {showRecorder ? (
-        <div className="flex flex-col items-center justify-center gap-4 py-3 text-center">
-          <div
-            className={cn(
-              "rounded-full p-2 transition-colors",
-              recording ? "bg-destructive/15" : "bg-primary/10",
-            )}
-            style={
-              recording ? { transform: `scale(${1 + Math.min(level, 0.5) * 0.08})` } : undefined
-            }
-          >
-            <button
-              type="button"
-              aria-label={
-                recording ? t("结束录音", "Stop recording") : t("说出回答", "Speak your answer")
-              }
-              onClick={() => (recording ? void finish() : void begin())}
-              disabled={working || busy}
+      <div className="space-y-5">
+        {choices ? (
+          <fieldset disabled={busy || recording || working} className="space-y-3">
+            <legend className="mb-3 text-lg font-semibold">
+              {t(
+                "选择最符合您想法的一项，或直接补充说明。",
+                "Choose the closest answer, or share your own thoughts below.",
+              )}
+            </legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {choices.map((choice, index) => (
+                <label
+                  key={choice.en}
+                  className={cn(
+                    "flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border p-4 text-lg focus-within:ring-2 focus-within:ring-ring",
+                    selectedChoice === index ? "border-primary bg-primary/10" : "border-border",
+                  )}
+                >
+                  <input
+                    type="radio"
+                    name="guided-answer"
+                    checked={selectedChoice === index}
+                    onChange={() => setSelectedChoice(index)}
+                    className="h-5 w-5 accent-primary"
+                  />
+                  {t(choice.zh, choice.en)}
+                </label>
+              ))}
+            </div>
+            {selectedChoice !== null ? (
+              <button
+                type="button"
+                className={quietActionClass}
+                onClick={() => setSelectedChoice(null)}
+              >
+                {t("清除选择", "Clear selection")}
+              </button>
+            ) : null}
+          </fieldset>
+        ) : null}
+        {showRecorder ? (
+          <div className="flex flex-col items-center justify-center gap-4 py-3 text-center">
+            <div
               className={cn(
-                "relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full text-primary-foreground shadow-md transition-colors focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-ring disabled:opacity-60 sm:h-40 sm:w-40",
-                recording ? "bg-destructive" : "bg-primary hover:bg-primary/90",
+                "rounded-full p-2 transition-colors",
+                recording ? "bg-destructive/15" : "bg-primary/10",
               )}
+              style={
+                recording ? { transform: `scale(${1 + Math.min(level, 0.5) * 0.08})` } : undefined
+              }
             >
-              {working ? (
-                <span
-                  aria-hidden
-                  className="absolute inset-0 animate-[ping_1.6s_cubic-bezier(0,0,0.2,1)_infinite] rounded-full bg-primary-foreground/25"
-                />
-              ) : null}
-              {working ? (
-                <Mic className="h-12 w-12 animate-pulse sm:h-16 sm:w-16" aria-hidden />
-              ) : recording ? (
-                <Square className="h-10 w-10 fill-current" aria-hidden />
-              ) : (
-                <Mic className="h-12 w-12" aria-hidden />
-              )}
-            </button>
-          </div>
-          <p className="text-xl font-semibold text-foreground" role="status">
-            {working
-              ? t("正在转成文字…", "Turning speech into text…")
-              : recording
-                ? t("正在录音", "Recording")
-                : t("按麦克风说话", "Tap the microphone to speak")}
-          </p>
-          {recording ? (
-            <p className="text-base text-muted-foreground">
-              {elapsedTime(recordedSeconds)} · {t("说完后再按一次", "Tap again when finished")}
+              <button
+                type="button"
+                aria-label={
+                  recording ? t("结束录音", "Stop recording") : t("说出回答", "Speak your answer")
+                }
+                onClick={() => (recording ? void finish() : void begin())}
+                disabled={working || busy}
+                className={cn(
+                  "relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full text-primary-foreground shadow-md transition-colors focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-ring disabled:opacity-60 sm:h-40 sm:w-40",
+                  recording ? "bg-destructive" : "bg-primary hover:bg-primary/90",
+                )}
+              >
+                {working ? (
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 animate-[ping_1.6s_cubic-bezier(0,0,0.2,1)_infinite] rounded-full bg-primary-foreground/25"
+                  />
+                ) : null}
+                {working ? (
+                  <Mic className="h-12 w-12 animate-pulse sm:h-16 sm:w-16" aria-hidden />
+                ) : recording ? (
+                  <Square className="h-10 w-10 fill-current" aria-hidden />
+                ) : (
+                  <Mic className="h-12 w-12" aria-hidden />
+                )}
+              </button>
+            </div>
+            <p className="text-xl font-semibold text-foreground" role="status">
+              {working
+                ? t("正在转成文字…", "Turning speech into text…")
+                : recording
+                  ? t("正在录音", "Recording")
+                  : t("按麦克风说话", "Tap the microphone to speak")}
             </p>
-          ) : null}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          <label htmlFor="answer-draft" className="block text-lg font-semibold text-foreground">
-            {t("您的回答", "Your answer")}
-          </label>
-          <textarea
-            id="answer-draft"
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            rows={3}
-            className={cn(inputClass, "text-xl leading-relaxed")}
-          />
-          <BigButton
-            onClick={() => onSubmit(draft.trim(), answerMode)}
-            disabled={busy || !draft.trim()}
-          >
-            {busy ? t("正在保存…", "Saving…") : t("保存并继续", "Save and continue")}
-          </BigButton>
-        </div>
-      )}
+            {recording ? (
+              <p className="text-base text-muted-foreground">
+                {elapsedTime(recordedSeconds)} · {t("说完后再按一次", "Tap again when finished")}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <label htmlFor="answer-draft" className="block text-lg font-semibold text-foreground">
+              {choices
+                ? t(
+                    "还有什么想让我们知道的吗？（可选）",
+                    "Anything else you’d like us to know? (optional)",
+                  )
+                : t("您的回答", "Your answer")}
+            </label>
+            <textarea
+              id="answer-draft"
+              disabled={busy}
+              value={draft}
+              onChange={(event) => setDraft(event.target.value)}
+              rows={3}
+              className={cn(inputClass, "text-xl leading-relaxed")}
+            />
+            <BigButton
+              onClick={() => {
+                const choice = selectedChoice !== null ? choices?.[selectedChoice] : undefined;
+                const answer = [choice ? t(choice.zh, choice.en) : "", draft.trim()]
+                  .filter(Boolean)
+                  .join("\n\n");
+                onSubmit(answer, answerMode);
+              }}
+              disabled={busy || (!draft.trim() && selectedChoice === null)}
+            >
+              {busy ? t("正在保存…", "Saving…") : t("保存并继续", "Save and continue")}
+            </BigButton>
+          </div>
+        )}
+      </div>
 
       {error ? (
         <p role="alert" className="text-base text-destructive">
