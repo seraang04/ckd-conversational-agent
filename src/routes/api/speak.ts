@@ -28,13 +28,19 @@ export const Route = createFileRoute("/api/speak")({
         const mainElevenKey = process.env["ELEVENLABS_API_KEY"];
         const zhElevenKey = process.env["ELEVENLABS_API_KEY_ZH"];
         const MAIN_VOICE = "vGsgKCTg5Qu072vRGiR5";
+        // Chinese never falls back to the English-tuned voice. It tries the
+        // dedicated Chinese voice (Sapphire), then a Mandarin-capable built-in
+        // voice on the same account, before leaving ElevenLabs entirely.
         const zhAttempts =
           zhElevenKey && language === "zh"
-            ? [{ key: zhElevenKey, voiceId: "zmcVlqmyk3Jpn5AVYcAL" }]
+            ? [
+                { key: zhElevenKey, voiceId: "zmcVlqmyk3Jpn5AVYcAL" },
+                { key: zhElevenKey, voiceId: "pFZP5JQG7iQjIQuC4Bku" }, // Lily (built-in)
+              ]
             : [];
         const elevenAttempts =
           language === "zh"
-            ? [...zhAttempts, ...(mainElevenKey ? [{ key: mainElevenKey, voiceId: MAIN_VOICE }] : [])]
+            ? zhAttempts
             : mainElevenKey
               ? [{ key: mainElevenKey, voiceId: MAIN_VOICE }]
               : [];
