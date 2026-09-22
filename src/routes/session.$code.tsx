@@ -57,9 +57,7 @@ export const Route = createFileRoute("/session/$code")({
     language: parseLanguage(search["language"]),
   }),
   head: () => ({
-    links: [
-      { rel: "preload", as: "image", href: claraMascot, fetchPriority: "high" },
-    ],
+    links: [{ rel: "preload", as: "image", href: claraMascot, fetchPriority: "high" }],
     meta: [
       { title: "Values conversation" },
       {
@@ -723,7 +721,7 @@ function Confirmation({
         .filter((e) => e.visibility === "deferred" || e.visibility === "private")
         .map((e) => {
           if (e.topic === "sensitive-1") {
-            return t("换肾或家人捐肾", "Kidney transplant or family donation");
+            return t("亲近的人或家人捐肾", "Living or family kidney donation");
           }
           if (e.topic === "caregiver-4") {
             return t("照顾者想私下谈", "Caregiver wants to talk privately");
