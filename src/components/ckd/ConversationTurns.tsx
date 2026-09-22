@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import claraMascot from "@/assets/clara-mascot.png";
 
 import { VoiceAnswer } from "./VoiceAnswer";
-import { BigButton, Card, Notice } from "./ui";
+import { BigButton, Card, ClaraPending, Notice } from "./ui";
 import { nextConversationTurn } from "@/lib/ckd.functions";
 import { conversationContext, type ConversationScope } from "@/lib/conversation";
 import { SCRIPT, type ScriptQuestion } from "@/lib/ckd-script";
@@ -164,17 +164,7 @@ export function ConversationTurns({
             className="h-9 w-1/2 max-w-xs animate-pulse rounded-2xl bg-muted"
           />
         </div>
-        <div className="flex flex-col items-center justify-center gap-5 py-3 text-center">
-          <img
-            src={claraMascot}
-            loading="eager"
-            alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
-            className="h-40 w-40 object-contain sm:h-52 sm:w-52"
-          />
-          <p role="status" className="text-xl font-semibold text-foreground">
-            {t("正在准备下一题", "Preparing next question")}
-          </p>
-        </div>
+        <ClaraPending label={t("正在准备下一题", "Preparing next question")} />
         <div />
       </section>
     );

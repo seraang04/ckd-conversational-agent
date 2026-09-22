@@ -28,7 +28,7 @@ import {
   ActionButton,
   BigButton,
   Card,
-  MicPending,
+  ClaraPending,
   Notice,
   Page,
   inputClass,
@@ -57,9 +57,7 @@ export const Route = createFileRoute("/session/$code")({
     language: parseLanguage(search["language"]),
   }),
   head: () => ({
-    links: [
-      { rel: "preload", as: "image", href: claraMascot, fetchPriority: "high" },
-    ],
+    links: [{ rel: "preload", as: "image", href: claraMascot, fetchPriority: "high" }],
     meta: [
       { title: "Values conversation" },
       {
@@ -335,7 +333,7 @@ function SessionFlow() {
               className="h-9 w-1/2 max-w-xs animate-pulse rounded-2xl bg-muted"
             />
           </div>
-          <MicPending
+          <ClaraPending
             label={requestedLanguage === "zh" ? "正在打开对话" : "Opening conversation"}
           />
           <div />

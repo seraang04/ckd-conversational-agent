@@ -1,8 +1,9 @@
 import { useText, LanguageContext, type Language } from "@/lib/language";
 import { Link } from "@tanstack/react-router";
-import { Mic, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
+import claraMascot from "@/assets/clara-mascot.png";
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 
@@ -202,23 +203,16 @@ export function SpeakerBadge({ speaker }: { speaker: string }) {
 }
 
 /** Calm breathing-mic placeholder shown where the voice button will appear. */
-export function MicPending({ label }: { label?: string }) {
+export function ClaraPending({ label }: { label?: string }) {
+  const t = useText();
   return (
     <div className="flex flex-col items-center justify-center gap-5 py-3 text-center">
-      <div className="relative flex h-40 w-40 items-center justify-center sm:h-52 sm:w-52">
-        <span
-          aria-hidden
-          className="absolute inset-0 animate-[ping_2.6s_cubic-bezier(0,0,0.2,1)_infinite] rounded-full bg-primary/15"
-        />
-        <span
-          aria-hidden
-          style={{ animationDelay: "1.3s" }}
-          className="absolute inset-0 animate-[ping_2.6s_cubic-bezier(0,0,0.2,1)_infinite] rounded-full bg-primary/10"
-        />
-        <span className="relative flex h-28 w-28 items-center justify-center rounded-full bg-primary/15 sm:h-40 sm:w-40">
-          <Mic aria-hidden className="h-12 w-12 animate-pulse text-primary/70 sm:h-16 sm:w-16" />
-        </span>
-      </div>
+      <img
+        src={claraMascot}
+        loading="eager"
+        alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
+        className="h-40 w-40 object-contain sm:h-52 sm:w-52"
+      />
       {label ? (
         <p role="status" className="text-xl font-semibold text-foreground">
           {label}
