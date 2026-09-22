@@ -3,7 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import claraMascot from "@/assets/clara-mascot.png";
+import claraMascot from "@/assets/clara-mascot-display.png";
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 
@@ -210,6 +210,7 @@ export function ClaraPending({ label }: { label?: string }) {
       <img
         src={claraMascot}
         loading="eager"
+        fetchPriority="high"
         alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
         className="h-40 w-40 object-contain sm:h-52 sm:w-52"
       />

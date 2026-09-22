@@ -1,3 +1,4 @@
+import claraMascot from "@/assets/clara-mascot-display.png";
 import { normaliseLanguage, useText } from "@/lib/language";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -9,7 +10,10 @@ export const Route = createFileRoute("/session/")({
   validateSearch: (search: Record<string, unknown>) => ({
     language: normaliseLanguage(search["language"]),
   }),
-  head: () => ({ meta: [{ title: "Opening conversation" }] }),
+  head: () => ({
+    links: [{ rel: "preload", as: "image", href: claraMascot, fetchPriority: "high" }],
+    meta: [{ title: "Opening conversation" }],
+  }),
   component: OpenConversation,
 });
 

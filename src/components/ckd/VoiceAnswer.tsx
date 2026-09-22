@@ -3,7 +3,7 @@ import { Keyboard, Mic, Square, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BigButton, SpeakerBadge, inputClass, quietActionClass } from "@/components/ckd/ui";
-import claraMascot from "@/assets/clara-mascot.png";
+import claraMascot from "@/assets/clara-mascot-display.png";
 import { startRecording, type Recorder } from "@/lib/recorder";
 import { speak, stopSpeaking, transcribe } from "@/lib/speak";
 import { cn } from "@/lib/utils";

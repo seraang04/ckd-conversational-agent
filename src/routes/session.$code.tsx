@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import claraMascot from "@/assets/clara-mascot.png";
+import claraMascot from "@/assets/clara-mascot-display.png";
 
 import {
   actionControlClass,

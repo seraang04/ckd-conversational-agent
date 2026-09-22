@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useRef, useState } from "react";
-import claraMascot from "@/assets/clara-mascot.png";
+import claraMascot from "@/assets/clara-mascot-display.png";
 
 import { VoiceAnswer } from "./VoiceAnswer";
 import { BigButton, Card, ClaraPending, Notice } from "./ui";
