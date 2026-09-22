@@ -22,24 +22,31 @@ export const Route = createFileRoute("/api/speak")({
         }
 
         // Clara's ElevenLabs voice. The API keys stay server-side only.
-        // English uses the main key/voice; Chinese uses the dedicated
-        // Chinese-voice key and voice ID (falling back to the main key).
-        const elevenKey =
+        // English uses the main key/voice; Chinese first tries the dedicated
+        // Chinese-voice key and voice ID, then falls back to the main
+        // ElevenLabs voice before leaving ElevenLabs entirely.
+        const mainElevenKey = process.env["ELEVENLABS_API_KEY"];
+        const zhElevenKey = process.env["ELEVENLABS_API_KEY_ZH"];
+        const MAIN_VOICE = "vGsgKCTg5Qu072vRGiR5";
+        const zhAttempts =
+          zhElevenKey && language === "zh"
+            ? [{ key: zhElevenKey, voiceId: "9lHjugDhwqoxA5MhX0az" }]
+            : [];
+        const elevenAttempts =
           language === "zh"
-            ? (process.env["ELEVENLABS_API_KEY_ZH"] ?? process.env["ELEVENLABS_API_KEY"])
-            : process.env["ELEVENLABS_API_KEY"];
-        if (elevenKey) {
-          const voiceId =
-            language === "zh" && process.env["ELEVENLABS_API_KEY_ZH"]
-              ? "9lHjugDhwqoxA5MhX0az"
-              : "vGsgKCTg5Qu072vRGiR5";
+            ? [...zhAttempts, ...(mainElevenKey ? [{ key: mainElevenKey, voiceId: MAIN_VOICE }] : [])]
+            : mainElevenKey
+              ? [{ key: mainElevenKey, voiceId: MAIN_VOICE }]
+              : [];
+
+        for (const attempt of elevenAttempts) {
           try {
             const res = await fetch(
-              `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream?output_format=mp3_44100_128`,
+              `https://api.elevenlabs.io/v1/text-to-speech/${attempt.voiceId}/stream?output_format=mp3_44100_128`,
               {
                 method: "POST",
                 headers: {
-                  "xi-api-key": elevenKey,
+                  "xi-api-key": attempt.key,
                   "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
