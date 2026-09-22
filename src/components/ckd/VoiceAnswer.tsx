@@ -3,11 +3,14 @@ import { Keyboard, Mic, Square, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BigButton, SpeakerBadge, inputClass, quietActionClass } from "@/components/ckd/ui";
+import claraMascot from "@/assets/clara-mascot.png";
 import { startRecording, type Recorder } from "@/lib/recorder";
 import { speak, stopSpeaking, transcribe } from "@/lib/speak";
 import { cn } from "@/lib/utils";
 
 type Props = {
+  acknowledgementZh?: string;
+  acknowledgementEn?: string;
   questionZh: string;
   questionEn: string;
   language: Language;
@@ -25,6 +28,8 @@ function elapsedTime(seconds: number) {
 }
 
 export function VoiceAnswer({
+  acknowledgementZh,
+  acknowledgementEn,
   questionZh,
   questionEn,
   language,
@@ -36,6 +41,8 @@ export function VoiceAnswer({
 }: Props) {
   const t = useText(language);
   const question = language === "en" ? questionEn : questionZh;
+  const acknowledgement = language === "en" ? acknowledgementEn : acknowledgementZh;
+  const spokenTurn = acknowledgement ? `${acknowledgement} ${question}` : question;
   const [draft, setDraft] = useState("");
   const [recording, setRecording] = useState(false);
   const [working, setWorking] = useState(false);
@@ -63,14 +70,14 @@ export function VoiceAnswer({
     // Defer playback so React's development effect replay does not start it twice.
     autoplayTimerRef.current = window.setTimeout(() => {
       autoplayTimerRef.current = null;
-      void speak(question, language);
+      void speak(spokenTurn, language);
     }, 0);
     return () => {
       if (autoplayTimerRef.current !== null) window.clearTimeout(autoplayTimerRef.current);
       autoplayTimerRef.current = null;
       stopSpeaking();
     };
-  }, [question, language]);
+  }, [spokenTurn, language]);
 
   useEffect(() => {
     if (!recording) return;
@@ -127,7 +134,29 @@ export function VoiceAnswer({
   return (
     <section className="mx-auto grid min-h-[calc(100dvh-8rem)] w-full max-w-3xl grid-rows-[minmax(11rem,auto)_minmax(14rem,1fr)_auto] gap-4 py-3 sm:min-h-[calc(100dvh-9rem)] sm:grid-rows-[minmax(11rem,auto)_minmax(16rem,1fr)_auto] sm:py-4">
       <div className="space-y-4">
-        {speaker === "caregiver" ? <SpeakerBadge speaker={speaker} /> : null}
+        <div className="flex items-start gap-4 sm:gap-6">
+          <div className="relative mt-1 h-24 w-20 shrink-0 overflow-hidden sm:h-32 sm:w-24">
+            <img
+              src={claraMascot}
+              alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
+              className="h-full w-full object-contain object-bottom motion-safe:animate-[pulse_3.6s_ease-in-out_infinite]"
+            />
+          </div>
+          <div className="min-w-0 space-y-3 pt-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-lg font-semibold text-primary">Clara</span>
+              <span className="text-sm text-muted-foreground">
+                {t("对话伙伴", "Conversation companion")}
+              </span>
+              {speaker === "caregiver" ? <SpeakerBadge speaker={speaker} /> : null}
+            </div>
+            {acknowledgement ? (
+              <p className="max-w-2xl text-xl leading-relaxed text-foreground sm:text-2xl">
+                {acknowledgement}
+              </p>
+            ) : null}
+          </div>
+        </div>
         <h1 className="max-w-2xl text-3xl font-semibold leading-tight text-foreground sm:text-4xl">
           {question}
         </h1>
@@ -135,7 +164,7 @@ export function VoiceAnswer({
           type="button"
           className={quietActionClass}
           disabled={recording || working}
-          onClick={() => void speak(question, language)}
+          onClick={() => void speak(spokenTurn, language)}
         >
           <Volume2 className="h-6 w-6" aria-hidden />
           {t("听题目", "Hear question")}

@@ -141,6 +141,8 @@ export function ConversationTurns({
       ) : null}
       <VoiceAnswer
         key={historyKey}
+        acknowledgementZh={next.acknowledgementZh}
+        acknowledgementEn={next.acknowledgementEn}
         questionZh={next.questionZh}
         questionEn={next.questionEn}
         language={language}
