@@ -1,8 +1,9 @@
 import { useText, LanguageContext, type Language } from "@/lib/language";
 import { Link } from "@tanstack/react-router";
-import { Mic, type LucideIcon } from "lucide-react";
+import { type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
+import claraMascot from "@/assets/clara-mascot-display.png";
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 
@@ -201,29 +202,40 @@ export function SpeakerBadge({ speaker }: { speaker: string }) {
   );
 }
 
-/** Calm breathing-mic placeholder shown where the voice button will appear. */
-export function MicPending({ label }: { label?: string }) {
+/** Clara accompanies the user while conversation content loads. */
+export function ClaraPending({ label }: { label?: string }) {
+  const t = useText();
   return (
     <div className="flex flex-col items-center justify-center gap-5 py-3 text-center">
-      <div className="relative flex h-40 w-40 items-center justify-center sm:h-52 sm:w-52">
-        <span
-          aria-hidden
-          className="absolute inset-0 animate-[ping_2.6s_cubic-bezier(0,0,0.2,1)_infinite] rounded-full bg-primary/15"
-        />
-        <span
-          aria-hidden
-          style={{ animationDelay: "1.3s" }}
-          className="absolute inset-0 animate-[ping_2.6s_cubic-bezier(0,0,0.2,1)_infinite] rounded-full bg-primary/10"
-        />
-        <span className="relative flex h-28 w-28 items-center justify-center rounded-full bg-primary/15 sm:h-40 sm:w-40">
-          <Mic aria-hidden className="h-12 w-12 animate-pulse text-primary/70 sm:h-16 sm:w-16" />
-        </span>
-      </div>
+      <img
+        src={claraMascot}
+        loading="eager"
+        fetchPriority="high"
+        alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
+        className="h-40 w-40 object-contain sm:h-52 sm:w-52"
+      />
       {label ? (
         <p role="status" className="text-xl font-semibold text-foreground">
           {label}
         </p>
       ) : null}
     </div>
+  );
+}
+
+export function OpeningConversation() {
+  const t = useText();
+  return (
+    <section className="mx-auto grid min-h-[calc(100dvh-10rem)] w-full max-w-3xl grid-rows-[minmax(11rem,auto)_minmax(14rem,1fr)_auto] gap-4 py-3">
+      <div className="space-y-4" aria-hidden>
+        <div className="h-9 w-3/4 max-w-md animate-pulse rounded-2xl bg-muted" />
+        <div
+          style={{ animationDelay: "0.4s" }}
+          className="h-9 w-1/2 max-w-xs animate-pulse rounded-2xl bg-muted"
+        />
+      </div>
+      <ClaraPending label={t("正在打开对话", "Opening conversation")} />
+      <div />
+    </section>
   );
 }

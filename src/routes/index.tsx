@@ -1,3 +1,4 @@
+import claraMascot from "@/assets/clara-mascot-display.png";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 import { BrandMark } from "@/components/ckd/ui";
@@ -5,6 +6,7 @@ import type { Language } from "@/lib/language";
 
 export const Route = createFileRoute("/")({
   head: () => ({
+    links: [{ rel: "preload", as: "image", href: claraMascot }],
     meta: [
       { title: "谈谈我在意的事 · CKD values conversation" },
       {

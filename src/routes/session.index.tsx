@@ -1,15 +1,19 @@
+import claraMascot from "@/assets/clara-mascot-display.png";
 import { normaliseLanguage, useText } from "@/lib/language";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { BigButton, Page } from "@/components/ckd/ui";
+import { BigButton, OpeningConversation, Page } from "@/components/ckd/ui";
 import { createConversation, serviceUnavailable } from "@/lib/ckd-db";
 
 export const Route = createFileRoute("/session/")({
   validateSearch: (search: Record<string, unknown>) => ({
     language: normaliseLanguage(search["language"]),
   }),
-  head: () => ({ meta: [{ title: "Opening conversation" }] }),
+  head: () => ({
+    links: [{ rel: "preload", as: "image", href: claraMascot, fetchPriority: "high" }],
+    meta: [{ title: "Opening conversation" }],
+  }),
   component: OpenConversation,
 });
 
@@ -42,33 +46,33 @@ function OpenConversation() {
     void open();
   }, [open]);
 
+  if (!serviceUnavailable && !failed) {
+    return (
+      <Page language={language} minimalHeader>
+        <OpeningConversation />
+      </Page>
+    );
+  }
+
   return (
     <Page language={language} minimalHeader>
       <div className="mx-auto w-full max-w-xl space-y-5">
-        {serviceUnavailable || failed ? (
-          <>
-            <h1 className="text-3xl font-semibold text-foreground">
-              {t("无法打开对话", "Unable to open conversation")}
-            </h1>
-            <p className="text-lg text-muted-foreground">
-              {t("请联系工作人员。", "Please ask a staff member for help.")}
-            </p>
-            {!serviceUnavailable ? (
-              <BigButton
-                onClick={() => {
-                  started.current = false;
-                  void open();
-                }}
-              >
-                {t("重试", "Try again")}
-              </BigButton>
-            ) : null}
-          </>
-        ) : (
-          <p className="text-lg text-muted-foreground" role="status">
-            {t("正在打开对话…", "Opening conversation…")}
-          </p>
-        )}
+        <h1 className="text-3xl font-semibold text-foreground">
+          {t("无法打开对话", "Unable to open conversation")}
+        </h1>
+        <p className="text-lg text-muted-foreground">
+          {t("请联系工作人员。", "Please ask a staff member for help.")}
+        </p>
+        {!serviceUnavailable ? (
+          <BigButton
+            onClick={() => {
+              started.current = false;
+              void open();
+            }}
+          >
+            {t("重试", "Try again")}
+          </BigButton>
+        ) : null}
       </div>
     </Page>
   );
