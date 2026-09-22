@@ -197,6 +197,7 @@ export function ConversationTurns({
             ? undefined
             : SCRIPT.find((question) => question.id === next.topic)?.choices
         }
+        answerKind={SCRIPT.find((question) => question.id === next.topic)?.answerKind ?? "single"}
         acknowledgementZh={next.acknowledgementZh}
         acknowledgementEn={next.acknowledgementEn}
         questionZh={next.questionZh}

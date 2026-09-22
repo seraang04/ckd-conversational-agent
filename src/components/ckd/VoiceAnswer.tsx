@@ -8,10 +8,14 @@ import { startRecording, type Recorder } from "@/lib/recorder";
 import { speak, stopSpeaking, transcribe } from "@/lib/speak";
 import { cn } from "@/lib/utils";
 
+import type { AnswerChoice, AnswerKind } from "@/lib/ckd-script";
+import { toggleChoice, moveChoice, formatChoices } from "@/lib/guided-answer";
+
 type Props = {
   acknowledgementZh?: string;
   acknowledgementEn?: string;
-  choices?: { zh: string; en: string }[] | undefined;
+  choices?: AnswerChoice[] | undefined;
+  answerKind?: AnswerKind;
   questionZh: string;
   questionEn: string;
   language: Language;
@@ -30,6 +34,7 @@ function elapsedTime(seconds: number) {
 
 export function VoiceAnswer({
   choices,
+  answerKind = "single",
   acknowledgementZh,
   acknowledgementEn,
   questionZh,
@@ -45,7 +50,7 @@ export function VoiceAnswer({
   const question = language === "en" ? questionEn : questionZh;
   const acknowledgement = language === "en" ? acknowledgementEn : acknowledgementZh;
   const spokenTurn = acknowledgement ? `${acknowledgement} ${question}` : question;
-  const [selectedChoice, setSelectedChoice] = useState<number | null>(null);
+  const [selectedChoices, setSelectedChoices] = useState<number[]>([]);
   const [draft, setDraft] = useState("");
   const [recording, setRecording] = useState(false);
   const [working, setWorking] = useState(false);
@@ -58,7 +63,7 @@ export function VoiceAnswer({
   const autoplayTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
-    setSelectedChoice(null);
+    setSelectedChoices([]);
     setDraft("");
     setTyping(false);
     setAnswerMode("typed");
@@ -181,10 +186,20 @@ export function VoiceAnswer({
         {choices ? (
           <fieldset disabled={busy || recording || working} className="space-y-3">
             <legend className="mb-3 text-lg font-semibold">
-              {t(
-                "选择最符合您想法的一项，或直接补充说明。",
-                "Choose the closest answer, or share your own thoughts below.",
-              )}
+              {answerKind === "ranking"
+                ? t(
+                    "选择您重视的事项，再用上移和下移按钮排序。最重要的排第一。您也可以只补充说明。",
+                    "Select what matters to you, then use Move up and Move down to put the most important first. You can also just share your thoughts below.",
+                  )
+                : answerKind === "multiple"
+                  ? t(
+                      "选择所有符合您情况的选项，或直接补充说明。",
+                      "Select all that apply, or share your own thoughts below.",
+                    )
+                  : t(
+                      "选择最符合您想法的一项，或直接补充说明。",
+                      "Choose the closest answer, or share your own thoughts below.",
+                    )}
             </legend>
             <div className="grid gap-3 sm:grid-cols-2">
               {choices.map((choice, index) => (
@@ -192,25 +207,71 @@ export function VoiceAnswer({
                   key={choice.en}
                   className={cn(
                     "flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border p-4 text-lg focus-within:ring-2 focus-within:ring-ring",
-                    selectedChoice === index ? "border-primary bg-primary/10" : "border-border",
+                    selectedChoices.includes(index)
+                      ? "border-primary bg-primary/10"
+                      : "border-border",
                   )}
                 >
                   <input
-                    type="radio"
+                    type={answerKind === "single" ? "radio" : "checkbox"}
                     name="guided-answer"
-                    checked={selectedChoice === index}
-                    onChange={() => setSelectedChoice(index)}
+                    checked={selectedChoices.includes(index)}
+                    onChange={() =>
+                      setSelectedChoices((selected) =>
+                        toggleChoice(selected, index, choices, answerKind),
+                      )
+                    }
                     className="h-5 w-5 accent-primary"
                   />
                   {t(choice.zh, choice.en)}
                 </label>
               ))}
             </div>
-            {selectedChoice !== null ? (
+            {answerKind === "ranking" && selectedChoices.length > 0 ? (
+              <ol aria-label={t("优先事项排序", "Priority ranking")} className="space-y-3">
+                {selectedChoices.map((index, position) => {
+                  const choice = choices[index]!;
+                  const label = t(choice.zh, choice.en);
+                  return (
+                    <li
+                      key={choice.en}
+                      className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3"
+                    >
+                      <span className="flex-1 text-lg">
+                        {position + 1}. {label}
+                      </span>
+                      <button
+                        type="button"
+                        className={quietActionClass}
+                        disabled={position === 0}
+                        aria-label={t(`上移：${label}`, `Move up: ${label}`)}
+                        onClick={() =>
+                          setSelectedChoices((selected) => moveChoice(selected, position, -1))
+                        }
+                      >
+                        {t("上移", "Move up")}
+                      </button>
+                      <button
+                        type="button"
+                        className={quietActionClass}
+                        disabled={position === selectedChoices.length - 1}
+                        aria-label={t(`下移：${label}`, `Move down: ${label}`)}
+                        onClick={() =>
+                          setSelectedChoices((selected) => moveChoice(selected, position, 1))
+                        }
+                      >
+                        {t("下移", "Move down")}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : null}
+            {selectedChoices.length > 0 ? (
               <button
                 type="button"
                 className={quietActionClass}
-                onClick={() => setSelectedChoice(null)}
+                onClick={() => setSelectedChoices([])}
               >
                 {t("清除选择", "Clear selection")}
               </button>
@@ -288,13 +349,15 @@ export function VoiceAnswer({
             />
             <BigButton
               onClick={() => {
-                const choice = selectedChoice !== null ? choices?.[selectedChoice] : undefined;
-                const answer = [choice ? t(choice.zh, choice.en) : "", draft.trim()]
+                const answer = [
+                  formatChoices(selectedChoices, choices ?? [], answerKind, language),
+                  draft.trim(),
+                ]
                   .filter(Boolean)
                   .join("\n\n");
                 onSubmit(answer, answerMode);
               }}
-              disabled={busy || (!draft.trim() && selectedChoice === null)}
+              disabled={busy || (!draft.trim() && selectedChoices.length === 0)}
             >
               {busy ? t("正在保存…", "Saving…") : t("保存并继续", "Save and continue")}
             </BigButton>
