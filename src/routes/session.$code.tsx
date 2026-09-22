@@ -35,6 +35,8 @@ import {
   quietActionClass,
 } from "@/components/ckd/ui";
 import { VoiceAnswer } from "@/components/ckd/VoiceAnswer";
+import { SafetySupport } from "@/components/ckd/SafetySupport";
+import { hasExplicitSafetySignal } from "@/lib/safety";
 import { ConversationTurns } from "@/components/ckd/ConversationTurns";
 import {
   addConversationEntry,
@@ -103,7 +105,21 @@ function SessionFlow() {
 
   const [busy, setBusy] = useState(false);
   const [downloading, setDownloading] = useState(false);
-  const [distress, setDistress] = useState(false);
+  const [safety, setSafety] = useState<"risk" | "unavailable" | null>(null);
+  const [safetySaved, setSafetySaved] = useState(false);
+  const safetyBlocked = useRef(false);
+  const retrySafety = useRef<() => void>(() => {});
+  const safetyStorageKey = `ckd-safety:${code}`;
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(safetyStorageKey)) {
+        safetyBlocked.current = true;
+        setSafety("risk");
+      }
+    } catch {
+      /* The database flag remains the authoritative record. */
+    }
+  }, [safetyStorageKey]);
 
   const distressCheck = useServerFn(checkDistress);
   const synthesise = useServerFn(buildSynthesis);
@@ -122,7 +138,11 @@ function SessionFlow() {
 
   const setStage = useCallback(
     async (stage: string, extra: Record<string, unknown> = {}) => {
-      if (!session) return false;
+      if (
+        !session ||
+        (stage !== "safety_review" && (safetyBlocked.current || session.stage === "safety_review"))
+      )
+        return false;
       try {
         await updateConversation(session.id, {
           stage,
@@ -188,6 +208,42 @@ function SessionFlow() {
     [session, refresh, t],
   );
 
+  const persistSafety = useCallback(async () => {
+    const saved = await setStage("safety_review");
+    setSafetySaved(saved);
+  }, [setStage]);
+
+  const screenAnswer = useCallback(
+    async (answer: string) => {
+      if (safetyBlocked.current || session?.stage === "safety_review") return false;
+      stopSpeaking();
+      let status: "clear" | "risk" | "unavailable" = "unavailable";
+      try {
+        status = hasExplicitSafetySignal(answer)
+          ? "risk"
+          : (await distressCheck({ data: { answer } })).status;
+      } catch {
+        /* Never treat a failed safety check as clearance. */
+      }
+      if (status === "clear") {
+        setSafety(null);
+        return true;
+      }
+      setSafety(status);
+      if (status === "risk") {
+        safetyBlocked.current = true;
+        try {
+          sessionStorage.setItem(safetyStorageKey, "pending");
+        } catch {
+          /* Still block in memory. */
+        }
+        await persistSafety();
+      }
+      return false;
+    },
+    [distressCheck, persistSafety, safetyStorageKey, session?.stage],
+  );
+
   const handleAnswer = useCallback(
     async (
       question: ScriptQuestion,
@@ -197,23 +253,18 @@ function SessionFlow() {
       visibility: string,
       afterStage?: string,
     ) => {
+      retrySafety.current = () =>
+        void handleAnswer(question, answer, mode, who, visibility, afterStage);
       setBusy(true);
-      const saved = await saveEntry(question, answer, mode, who, visibility, !afterStage);
-      if (!saved) {
+      try {
+        if (!(await screenAnswer(answer))) return;
+        const saved = await saveEntry(question, answer, mode, who, visibility, !afterStage);
+        if (saved && afterStage) await setStage(afterStage);
+      } finally {
         setBusy(false);
-        return;
       }
-      if (!localBackend) {
-        void distressCheck({ data: { answer } })
-          .then(({ distressed }) => {
-            if (distressed) setDistress(true);
-          })
-          .catch(() => undefined);
-      }
-      if (afterStage) await setStage(afterStage);
-      setBusy(false);
     },
-    [saveEntry, distressCheck, setStage],
+    [saveEntry, screenAnswer, setStage],
   );
 
   const handleNoAnswer = useCallback(
@@ -239,27 +290,18 @@ function SessionFlow() {
       who: "patient" | "caregiver",
       visibility: string,
     ) => {
+      retrySafety.current = () =>
+        void saveConversationEntry(question, answer, mode, who, visibility);
       setBusy(true);
       try {
-        const saved = await saveEntry(question, answer, mode, who, visibility);
-        if (
-          saved &&
-          !["skipped", "deferred"].includes(visibility) &&
-          answer.trim() &&
-          !localBackend
-        ) {
-          void distressCheck({ data: { answer } })
-            .then(({ distressed }) => {
-              if (distressed) setDistress(true);
-            })
-            .catch(() => undefined);
-        }
-        return saved;
+        if (safetyBlocked.current || session?.stage === "safety_review") return false;
+        if (answer.trim() && !(await screenAnswer(answer))) return false;
+        return await saveEntry(question, answer, mode, who, visibility);
       } finally {
         setBusy(false);
       }
     },
-    [saveEntry, distressCheck],
+    [saveEntry, screenAnswer, session?.stage],
   );
 
   if (query.isLoading) {
@@ -307,6 +349,23 @@ function SessionFlow() {
   }
 
   const isCaregiverStage = session.stage === "caregiver";
+  if (safety || session.stage === "safety_review") {
+    return (
+      <Page language={language} minimalHeader>
+        <SafetySupport
+          language={language}
+          unavailable={safety === "unavailable" && session.stage !== "safety_review"}
+          saved={safetySaved || session.stage === "safety_review"}
+          onRetry={() => {
+            if (busy) return;
+            if (safety === "risk" || session.stage === "safety_review") void persistSafety();
+            else retrySafety.current();
+          }}
+        />
+      </Page>
+    );
+  }
+
   const summary = bundle?.summary;
   const hasSummaryContent = summary
     ? SUMMARY_SECTIONS.some((section) => (summary[section.key]?.length ?? 0) > 0)
@@ -329,15 +388,6 @@ function SessionFlow() {
       }
     >
       <div className="space-y-5">
-        {distress ? (
-          <Notice tone="warn">
-            {t(
-              "如果您现在心里很难受，请告诉身边的人，或联络您的护理团队。",
-              "If this feels heavy right now, please tell someone with you or contact your care team.",
-            )}
-          </Notice>
-        ) : null}
-
         {session.stage === "consent" || session.stage === "checkin" ? (
           localBackend ? null : (
             <Card className="space-y-5">
