@@ -77,34 +77,116 @@ function browserSpeak(text: string, language: Language) {
   window.speechSynthesis.speak(utterance);
 }
 
-/** Generate the displayed question audio when it is requested. */
+/** Split spoken text into sentence-sized pieces so audio can start sooner. */
+export function splitSentences(text: string): string[] {
+  const pieces = text
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?。！？；;…])\s*/u)
+    .map((piece) => piece.trim())
+    .filter(Boolean);
+
+  const chunks: string[] = [];
+  for (const piece of pieces) {
+    const last = chunks[chunks.length - 1];
+    // Keep very short fragments attached so the voice does not sound clipped.
+    if (last && (last.length < 12 || piece.length < 12) && last.length + piece.length <= 240) {
+      chunks[chunks.length - 1] = `${last} ${piece}`;
+    } else {
+      chunks.push(piece.slice(0, 780));
+    }
+  }
+  return chunks.length > 0 ? chunks : [text.trim().slice(0, 780)];
+}
+
+/** Fetch one sentence of speech audio; resolves to null when unavailable. */
+async function fetchSpeech(
+  text: string,
+  language: Language,
+  signal: AbortSignal,
+): Promise<Blob | null> {
+  try {
+    const res = await fetch("/api/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, language }),
+      signal,
+    });
+    if (!res.ok || res.status === 204) return null;
+    const blob = await res.blob();
+    return blob.size > 0 ? blob : null;
+  } catch {
+    return null;
+  }
+}
+
+function playQueued(blob: Blob, requestGeneration: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    current = audio;
+    currentUrl = url;
+    const finish = (ok: boolean) => {
+      audio.onended = null;
+      audio.onerror = null;
+      if (current === audio) {
+        current = null;
+        audio.pause();
+        audio.removeAttribute("src");
+      }
+      if (currentUrl === url) {
+        URL.revokeObjectURL(url);
+        currentUrl = null;
+      }
+      resolve(ok && requestGeneration === generation);
+    };
+    audio.onended = () => finish(true);
+    audio.onerror = () => finish(false);
+    audio.play().catch(() => finish(false));
+  });
+}
+
+/**
+ * Speak the text sentence by sentence: each sentence is generated while the
+ * previous one plays, and the returned audio chunks are queued back to back.
+ */
 export async function speak(text: string, language: Language): Promise<void> {
   if (typeof window === "undefined" || !text.trim()) return;
   stopSpeaking();
   const requestGeneration = generation;
-  if (text.length <= 800) {
-    const controller = new AbortController();
-    currentRequest = controller;
-    try {
-      const res = await fetch("/api/speak", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, language }),
-        signal: controller.signal,
-      });
-      if (res.ok && res.status !== 204) {
-        const blob = await res.blob();
-        if (requestGeneration !== generation) return;
-        if (blob.size > 0 && (await playAudio(URL.createObjectURL(blob), true))) return;
-      }
+  const controller = new AbortController();
+  currentRequest = controller;
 
-    } catch {
-      // Continue with the device voice if live speech is unavailable.
-    } finally {
-      if (currentRequest === controller) currentRequest = null;
+  const sentences = splitSentences(text);
+  let pending = fetchSpeech(sentences[0]!, language, controller.signal);
+
+  try {
+    for (let index = 0; index < sentences.length; index += 1) {
+      const blob = await pending;
+      if (requestGeneration !== generation) return;
+      // Start generating the next sentence while this one plays.
+      const nextSentence = sentences[index + 1];
+      pending = nextSentence
+        ? fetchSpeech(nextSentence, language, controller.signal)
+        : Promise.resolve(null);
+      if (!blob) {
+        // Live speech unavailable: let the device voice read the rest.
+        controller.abort();
+        if (requestGeneration === generation) {
+          browserSpeak(sentences.slice(index).join(" "), language);
+        }
+        return;
+      }
+      const played = await playQueued(blob, requestGeneration);
+      if (!played) {
+        if (requestGeneration === generation) {
+          browserSpeak(sentences.slice(index).join(" "), language);
+        }
+        return;
+      }
     }
+  } finally {
+    if (currentRequest === controller) currentRequest = null;
   }
-  if (requestGeneration === generation) browserSpeak(text, language);
 }
 
 export async function transcribe(blob: Blob, language: Language): Promise<string> {
