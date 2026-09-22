@@ -23,19 +23,42 @@ export const Route = createFileRoute("/api/speak")({
 
         const openaiKey = process.env["OPENAI_API_KEY"];
         const lovableKey = process.env["LOVABLE_API_KEY"];
-        const key = openaiKey || lovableKey;
-        if (!key) return Response.json({ error: "speech_unavailable" }, { status: 503 });
 
-        try {
-          const res = await fetch(
-            openaiKey
-              ? "https://api.openai.com/v1/audio/speech"
-              : "https://ai.gateway.lovable.dev/v1/audio/speech",
-            {
+        const providers: { url: string; key: string; model: string }[] = [
+          ...(openaiKey
+            ? [
+                {
+                  url: "https://api.openai.com/v1/audio/speech",
+                  key: openaiKey,
+                  model: "gpt-4o-mini-tts",
+                },
+              ]
+            : []),
+          ...(lovableKey
+            ? [
+                {
+                  url: "https://ai.gateway.lovable.dev/v1/audio/speech",
+                  key: lovableKey,
+                  model: "openai/gpt-4o-mini-tts",
+                },
+              ]
+            : []),
+        ];
+        if (providers.length === 0) {
+          // 204: the browser quietly falls back to the device voice.
+          return new Response(null, { status: 204 });
+        }
+
+        for (const provider of providers) {
+          try {
+            const res = await fetch(provider.url, {
               method: "POST",
-              headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+              headers: {
+                Authorization: `Bearer ${provider.key}`,
+                "Content-Type": "application/json",
+              },
               body: JSON.stringify({
-                model: openaiKey ? "gpt-4o-mini-tts" : "openai/gpt-4o-mini-tts",
+                model: provider.model,
                 input: spoken,
                 voice: language === "en" ? "coral" : "shimmer",
                 instructions: VOICE_INSTRUCTIONS[language],
@@ -43,21 +66,23 @@ export const Route = createFileRoute("/api/speak")({
                 stream_format: "audio",
               }),
               signal: request.signal,
-            },
-          );
+            });
 
-          if (!res.ok || !res.body) {
-            console.error("Speech generation failed", res.status);
-            return Response.json({ error: "speech_failed" }, { status: 502 });
+            if (res.ok && res.body) {
+              return new Response(res.body, {
+                headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
+              });
+            }
+            console.error("Speech generation failed", provider.url, res.status);
+          } catch (error) {
+            if (request.signal.aborted) return new Response(null, { status: 204 });
+            console.error("Speech generation failed", provider.url, error);
           }
-
-          return new Response(res.body, {
-            headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" },
-          });
-        } catch (error) {
-          if (!request.signal.aborted) console.error("Speech generation failed", error);
-          return Response.json({ error: "speech_failed" }, { status: 502 });
         }
+
+        // No provider produced audio; the device voice takes over instead of showing an error.
+        return new Response(null, { status: 204 });
+
       },
     },
   },
