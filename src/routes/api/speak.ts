@@ -23,8 +23,8 @@ export const Route = createFileRoute("/api/speak")({
 
         // Chinese first tries Clara's Fish Audio voice (a natural young
         // Mandarin female voice). Keys stay server-side only.
-        const fishKey = process.env["FISH_AUDIO_API_KEY"];
-        const FISH_MODEL = "af3ae80581b44053bd207f1693bdc3a6";
+  const fishKey = process.env["FISH_AUDIO_API_KEY"];
+  const FISH_MODEL = "1c93a9ec5d48496fbe1b92ed4338de2a";
         if (language === "zh" && fishKey) {
           try {
             const res = await fetch("https://api.fish.audio/v1/tts", {
