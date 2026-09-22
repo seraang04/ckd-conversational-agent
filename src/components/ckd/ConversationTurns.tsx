@@ -98,6 +98,8 @@ export function ConversationTurns({
         <div className="flex items-center gap-4 sm:gap-6">
           <img
             src={claraMascot}
+            loading="eager"
+            fetchPriority="high"
             alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
             className="h-24 w-20 shrink-0 object-contain sm:h-32 sm:w-24"
           />

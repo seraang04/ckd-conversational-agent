@@ -138,6 +138,8 @@ export function VoiceAnswer({
           <div className="relative mt-1 h-24 w-20 shrink-0 overflow-hidden sm:h-32 sm:w-24">
             <img
               src={claraMascot}
+              loading="eager"
+              fetchPriority="high"
               alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
               className="h-full w-full object-contain object-bottom motion-safe:animate-[pulse_3.6s_ease-in-out_infinite]"
             />

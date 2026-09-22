@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import claraMascot from "@/assets/clara-mascot.png";
 
 import {
   actionControlClass,
@@ -57,6 +58,9 @@ export const Route = createFileRoute("/session/$code")({
     language: parseLanguage(search["language"]),
   }),
   head: () => ({
+    links: [
+      { rel: "preload", as: "image", href: claraMascot, fetchPriority: "high" },
+    ],
     meta: [
       { title: "Values conversation" },
       {
