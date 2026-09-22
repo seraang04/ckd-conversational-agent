@@ -73,11 +73,12 @@ export async function speak(text: string, language: Language): Promise<void> {
         body: JSON.stringify({ text, language }),
         signal: controller.signal,
       });
-      if (res.ok) {
+      if (res.ok && res.status !== 204) {
         const blob = await res.blob();
         if (requestGeneration !== generation) return;
-        if (await playAudio(URL.createObjectURL(blob), true)) return;
+        if (blob.size > 0 && (await playAudio(URL.createObjectURL(blob), true))) return;
       }
+
     } catch {
       // Continue with the device voice if live speech is unavailable.
     } finally {
