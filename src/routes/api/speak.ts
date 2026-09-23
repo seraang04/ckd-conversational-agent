@@ -26,8 +26,8 @@ export const Route = createFileRoute("/api/speak")({
         // young Mandarin female voice. Keys stay server-side only.
         const fishAttempt =
           language === "zh"
-          ? { key: process.env["FISH_AUDIO_API_KEY"], model: "1c93a9ec5d48496fbe1b92ed4338de2a" }
-            : { key: process.env["FISH_AUDIO_API_KEY_EN"], model: "6bcda803afc74a2380832694e74252c8" };
+          ? { key: process.env["FISH_AUDIO_API_KEY"], model: "af3ae80581b44053bd207f1693bdc3a6" }
+            : { key: process.env["FISH_AUDIO_API_KEY_EN"], model: "8545838ab4b047b48e689b86d0e6c2d8" };
         if (fishAttempt.key) {
           try {
             const res = await fetch("https://api.fish.audio/v1/tts", {
