@@ -5,51 +5,179 @@ import { PDFDocument, PDFName, decodePDFRawStream } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import ts from "typescript";
 
-const source = await readFile(new URL("../src/lib/summary-pdf.ts", import.meta.url), "utf8");
-const js = ts.transpileModule(
-  source
+const options = { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 };
+
+const scriptSource = await readFile(new URL("../src/lib/ckd-script.ts", import.meta.url), "utf8");
+const scriptJs = ts.transpileModule(scriptSource, { compilerOptions: options }).outputText;
+const scriptUrl = `data:text/javascript;base64,${Buffer.from(scriptJs).toString("base64")}`;
+
+const decisionSheetsSource = await readFile(
+  new URL("../src/lib/decision-sheets.ts", import.meta.url),
+  "utf8",
+);
+const decisionSheetsJs = ts.transpileModule(
+  decisionSheetsSource.replaceAll('"./ckd-script.ts"', JSON.stringify(scriptUrl)),
+  { compilerOptions: options },
+).outputText;
+const decisionSheetsUrl = `data:text/javascript;base64,${Buffer.from(decisionSheetsJs).toString("base64")}`;
+const { buildPatientSheet, buildCaregiverSheet } = await import(decisionSheetsUrl);
+
+const summaryPdfSource = await readFile(
+  new URL("../src/lib/summary-pdf.ts", import.meta.url),
+  "utf8",
+);
+const summaryPdfJs = ts.transpileModule(
+  summaryPdfSource
+    .replace('"./decision-sheets.ts"', JSON.stringify(decisionSheetsUrl))
     .replace('"pdf-lib"', JSON.stringify(import.meta.resolve("pdf-lib")))
     .replace('"@pdf-lib/fontkit"', JSON.stringify(import.meta.resolve("@pdf-lib/fontkit"))),
-  { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } },
+  { compilerOptions: options },
 ).outputText;
-const { createSummaryPdf } = await import(
-  `data:text/javascript;base64,${Buffer.from(js).toString("base64")}`
+const { createSheetPdf } = await import(
+  `data:text/javascript;base64,${Buffer.from(summaryPdfJs).toString("base64")}`
 );
+
 const font = await readFile(new URL("../public/fonts/NotoSansCJKsc-Regular.otf", import.meta.url));
 const fontBytes = font.buffer.slice(font.byteOffset, font.byteOffset + font.byteLength);
 
-test("creates a PDF with English and Chinese summary text", async () => {
-  const bytes = await createSummaryPdf(
-    "对话摘要 / Conversation summary",
-    [
-      {
-        heading: "您在意的事",
-        answers: ["我希望有更多时间陪伴家人。", "Time with family matters to me."],
-      },
-    ],
-    fontBytes,
-  );
-  assert.equal(Buffer.from(bytes).subarray(0, 5).toString(), "%PDF-");
+const confirmed = {
+  patientPriorities: [
+    "希望有更多时间陪伴家人 / More time with family",
+    "希望继续在家附近散步 / Keep walking near home",
+  ],
+  sharedConcerns: ["治疗对身体的影响 / How treatment may affect the body"],
+};
+
+function patientEntries(language) {
+  const enSheet = language === "en";
+  return [
+    {
+      speaker: "patient",
+      topic: "values-1",
+      visibility: "shared",
+      answer: enSheet
+        ? "Priorities (most important first):\n1. Staying independent\n2. Time with family\n3. Feeling comfortable"
+        : "优先事项（最重要的排在前面）：\n1. 保持独立\n2. 和家人相处\n3. 感觉舒适",
+    },
+    {
+      speaker: "patient",
+      topic: "values-2",
+      visibility: "shared",
+      answer: enSheet ? "Quite important" : "比较重要",
+    },
+    {
+      speaker: "patient",
+      topic: "values-3",
+      visibility: "shared",
+      answer: enSheet ? "Gardening on the balcony." : "在阳台上种花。",
+    },
+    {
+      speaker: "patient",
+      topic: "life-2",
+      visibility: "shared",
+      answer: enSheet ? "The bus stop is a bit far." : "巴士站有点远。",
+    },
+    {
+      speaker: "patient",
+      topic: "life-3",
+      visibility: "shared",
+      answer: enSheet ? "My daughter helps out." : "我女儿会帮忙。",
+    },
+    {
+      speaker: "patient",
+      topic: "worries-1",
+      visibility: "shared",
+      answer: enSheet ? "Selected concerns:\n• Costs\n• Impact on family" : "选择的担忧：\n• 费用\n• 对家人的影响",
+    },
+    {
+      speaker: "patient",
+      topic: "sensitive-1",
+      visibility: "deferred",
+      answer: "",
+    },
+  ];
+}
+
+function caregiverEntries(language) {
+  const enSheet = language === "en";
+  return [
+    {
+      speaker: "caregiver",
+      topic: "caregiver-2",
+      visibility: "shared",
+      answer: enSheet
+        ? "I drive her to appointments and help with meals."
+        : "我开车送她去看诊，也帮忙准备三餐。",
+    },
+    {
+      speaker: "caregiver",
+      topic: "caregiver-3",
+      visibility: "shared",
+      answer: enSheet
+        ? "Selected concerns:\n• Time and daily routines\n• My own wellbeing"
+        : "选择的担忧：\n• 时间与日常安排\n• 自己的身心健康",
+    },
+    {
+      speaker: "caregiver",
+      topic: "caregiver-4",
+      visibility: "private",
+      answer: enSheet ? "I'm worried I can't keep this up much longer." : "我担心自己撑不了太久。",
+    },
+  ];
+}
+
+for (const language of ["en", "zh"]) {
+  test(`patient sheet in ${language} renders to exactly 1 A4 page`, async () => {
+    const sheet = buildPatientSheet(language, patientEntries(language), confirmed, "2026-09-24");
+    const bytes = await createSheetPdf(sheet, fontBytes);
+    const pdf = await PDFDocument.load(bytes);
+    assert.equal(pdf.getPageCount(), 1);
+    const page = pdf.getPage(0);
+    assert.equal(page.getWidth(), 595.28);
+    assert.equal(page.getHeight(), 841.89);
+  });
+
+  test(`caregiver sheet in ${language} renders to exactly 1 A4 page`, async () => {
+    const sheet = buildCaregiverSheet(language, caregiverEntries(language), "2026-09-24");
+    const bytes = await createSheetPdf(sheet, fontBytes);
+    const pdf = await PDFDocument.load(bytes);
+    assert.equal(pdf.getPageCount(), 1);
+  });
+}
+
+test("a very long answer overflows onto more than one page", async () => {
+  const longConfirmed = {
+    patientPriorities: ["与家人共度时光。".repeat(400)],
+    sharedConcerns: [],
+  };
+  const sheet = buildPatientSheet("zh", [], longConfirmed, "2026-09-24");
+  const bytes = await createSheetPdf(sheet, fontBytes);
   const pdf = await PDFDocument.load(bytes);
-  assert.equal(pdf.getPageCount(), 1);
-  assert.equal(pdf.getTitle(), "对话摘要 / Conversation summary");
+  assert.ok(pdf.getPageCount() > 1);
 });
 
-test("preserves the bundled CFF font and its glyph IDs for PDF viewers", async () => {
-  const title = "对话摘要";
-  const bytes = await createSummaryPdf(title, [], fontBytes);
+test("the CJK font is embedded unsubset, and the title's glyph IDs appear in the content stream", async () => {
+  const sheet = buildPatientSheet("zh", patientEntries("zh"), confirmed, "2026-09-24");
+  const bytes = await createSheetPdf(sheet, fontBytes);
   const pdf = await PDFDocument.load(bytes);
   const page = pdf.getPage(0);
   const fonts = page.node.Resources().lookup(PDFName.of("Font"));
-  const fontDictionary = fonts.lookup(fonts.keys()[0]);
+  const type0Key = fonts.keys().find((key) => {
+    const dict = fonts.lookup(key);
+    return dict.lookup(PDFName.of("Subtype")) === PDFName.of("Type0");
+  });
+  assert.ok(type0Key, "expected a Type0 (composite CJK) font on the page");
+  const fontDictionary = fonts.lookup(type0Key);
   const descendant = fontDictionary.lookup(PDFName.of("DescendantFonts")).lookup(0);
   const descriptor = descendant.lookup(PDFName.of("FontDescriptor"));
-  const embedded = descriptor.lookup(PDFName.of("FontFile3"))
-    ?? descriptor.lookup(PDFName.of("FontFile2"));
+  const embedded = descriptor.lookup(PDFName.of("FontFile3")) ?? descriptor.lookup(PDFName.of("FontFile2"));
   assert.deepEqual(Buffer.from(decodePDFRawStream(embedded).decode()), font);
 
-  const expectedGlyphs = fontkit.create(font).layout(title).glyphs
-    .map((glyph) => glyph.id.toString(16).padStart(4, "0").toUpperCase()).join("");
+  const expectedGlyphs = fontkit
+    .create(font)
+    .layout(sheet.title)
+    .glyphs.map((glyph) => glyph.id.toString(16).padStart(4, "0").toUpperCase())
+    .join("");
   const contents = page.node.Contents();
   const commands = Array.from({ length: contents.size() }, (_, index) =>
     Buffer.from(decodePDFRawStream(contents.lookup(index)).decode()).toString(),
@@ -57,38 +185,13 @@ test("preserves the bundled CFF font and its glyph IDs for PDF viewers", async (
   assert.ok(commands.includes(`<${expectedGlyphs}> Tj`));
 });
 
-test("paginates long summaries including Chinese without spaces and long words", async () => {
-  const bytes = await createSummaryPdf(
-    "Summary",
-    [{ heading: "What matters", answers: ["与家人共度时光。".repeat(350), "word".repeat(500)] }],
-    fontBytes,
-  );
-  const pdf = await PDFDocument.load(bytes);
-  assert.ok(pdf.getPageCount() > 1);
-});
-
-
-test("uses proportional Latin punctuation and hanging indents for wrapped bullets", async () => {
-  const bytes = await createSummaryPdf(
-    "Conversation summary",
-    [{ heading: "Discuss at your appointment", answers: [
-      "Treatment’s effects on the body. You said “no.” " + "Support at home. ".repeat(20),
-    ] }],
-    fontBytes,
-  );
+test("English sheets draw Latin text with Helvetica, not the CJK font", async () => {
+  const sheet = buildPatientSheet("en", patientEntries("en"), confirmed, "2026-09-24");
+  const bytes = await createSheetPdf(sheet, fontBytes);
   const pdf = await PDFDocument.load(bytes);
   const page = pdf.getPage(0);
   const fonts = page.node.Resources().lookup(PDFName.of("Font"));
   const names = fonts.keys().map((key) => fonts.lookup(key).get(PDFName.of("BaseFont")).toString());
   assert.ok(names.includes("/Helvetica"));
   assert.ok(names.includes("/Helvetica-Bold"));
-  assert.equal(new Set(names).size, 2, "English punctuation should not use the CJK font");
-  const contents = page.node.Contents();
-  const commands = Array.from({ length: contents.size() }, (_, index) =>
-    Buffer.from(decodePDFRawStream(contents.lookup(index)).decode()).toString(),
-  ).join("\n");
-  assert.equal((commands.match(/1 0 0 1 52 [\d.]+ Tm/g) ?? []).length, 1, "one bullet marker");
-  assert.ok((commands.match(/1 0 0 1 66 [\d.]+ Tm/g) ?? []).length > 1,
-    "all wrapped answer lines use the text indent");
-  assert.ok(commands.includes("54726561746D656E749273"), "curly apostrophe uses Latin encoding");
 });

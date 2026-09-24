@@ -1,27 +1,52 @@
 /**
- * Server-only helpers for Lovable AI.
- * Every call goes to the gateway Responses API with streaming, and the stream is
+ * Server-only helpers for the AI-backed summary features.
+ * Every call goes to a Responses API with streaming, and the stream is
  * consumed here so callers get plain data back.
+ *
+ * Two providers are supported, chosen by which key is present in the
+ * environment:
+ * - OPENAI_API_KEY: calls OpenAI directly. Meant for local testing only —
+ *   set it in .env.local, which is gitignored and never reaches Lovable.
+ * - LOVABLE_API_KEY: calls Lovable's AI gateway. This is what the deployed
+ *   (Lovable-hosted) app uses.
+ * When both are absent, the caller falls back to its own non-AI behaviour
+ * (see e.g. buildSynthesis's localBackend branch in ckd.functions.ts).
  */
 
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/responses";
-const MODEL = "openai/gpt-6-astra";
+const LOVABLE_GATEWAY = "https://ai.gateway.lovable.dev/v1/responses";
+const LOVABLE_MODEL = "openai/gpt-6-astra";
+
+const OPENAI_ENDPOINT = "https://api.openai.com/v1/responses";
+const OPENAI_MODEL = process.env["OPENAI_MODEL"] || "gpt-5";
 
 type JsonSchema = Record<string, unknown>;
 
 async function callResponses(body: Record<string, unknown>): Promise<string> {
-  const key = process.env["LOVABLE_API_KEY"];
-  if (!key) throw new Error("AI is not configured for this project.");
+  const openaiKey = process.env["OPENAI_API_KEY"];
+  const lovableKey = process.env["LOVABLE_API_KEY"];
+  if (!openaiKey && !lovableKey) throw new Error("AI is not configured for this project.");
 
-  const res = await fetch(GATEWAY, {
+  const { url, headers, model } = openaiKey
+    ? {
+        url: OPENAI_ENDPOINT,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${openaiKey}` },
+        model: OPENAI_MODEL,
+      }
+    : {
+        url: LOVABLE_GATEWAY,
+        headers: {
+          "Content-Type": "application/json",
+          "Lovable-API-Key": lovableKey!,
+          "X-Lovable-AIG-SDK": "fetch",
+        },
+        model: LOVABLE_MODEL,
+      };
+
+  const res = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Lovable-API-Key": key,
-      "X-Lovable-AIG-SDK": "fetch",
-    },
+    headers,
     body: JSON.stringify({
-      model: MODEL,
+      model,
       stream: true,
       reasoning: { effort: "low", summary: "auto" },
       include: ["reasoning.encrypted_content"],
