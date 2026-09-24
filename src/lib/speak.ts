@@ -3,13 +3,20 @@ import type { Language } from "@/lib/language";
 let current: HTMLAudioElement | null = null;
 let currentUrl: string | null = null;
 let currentRequest: AbortController | null = null;
+let finishCurrentAudio: ((ok: boolean) => void) | null = null;
+let currentUtterance: SpeechSynthesisUtterance | null = null;
+let finishUtterance: (() => void) | null = null;
 let generation = 0;
 
 export function stopSpeaking() {
   generation += 1;
   currentRequest?.abort();
   currentRequest = null;
+  if (finishUtterance) finishUtterance();
   if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+  currentUtterance = null;
+  finishUtterance = null;
+  if (finishCurrentAudio) finishCurrentAudio(false);
   if (current) {
     current.onended = null;
     current.onerror = null;
@@ -51,30 +58,53 @@ async function playAudio(url: string, objectUrl = false): Promise<boolean> {
   }
 }
 
-function browserSpeak(text: string, language: Language) {
-  if (!window.speechSynthesis) return;
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = language === "en" ? "en-SG" : "zh-SG";
-  utterance.rate = language === "en" ? 0.9 : 0.86;
-  utterance.pitch = 1.1;
-  utterance.volume = 0.92;
+function browserSpeak(
+  text: string,
+  language: Language,
+  onPlaybackChange?: (playing: boolean) => void,
+): Promise<void> {
+  if (!window.speechSynthesis) return Promise.resolve();
+  return new Promise((resolve) => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    currentUtterance = utterance;
+    utterance.lang = language === "en" ? "en-SG" : "zh-SG";
+    utterance.rate = language === "en" ? 0.9 : 0.86;
+    utterance.pitch = 1.1;
+    utterance.volume = 0.92;
 
-  const voices = window.speechSynthesis.getVoices();
-  const preferredNames = /female|sin-ji|tingting|xiaoxiao|huihui|mei-jia|serena|samantha|zira|siri/i;
-  const languagePrefix = language === "en" ? "en" : "zh";
-  const preferredLocale = language === "en" ? "en-sg" : "zh-sg";
-  const localVoice =
-    voices.find(
-      (voice) =>
-        voice.lang.toLowerCase() === preferredLocale && preferredNames.test(voice.name),
-    ) ??
-    voices.find((voice) => voice.lang.toLowerCase() === preferredLocale) ??
-    voices.find(
-      (voice) =>
-        voice.lang.toLowerCase().startsWith(languagePrefix) && preferredNames.test(voice.name),
-    ) ?? voices.find((voice) => voice.lang.toLowerCase().startsWith(languagePrefix));
-  if (localVoice) utterance.voice = localVoice;
-  window.speechSynthesis.speak(utterance);
+    const voices = window.speechSynthesis.getVoices();
+    const preferredNames =
+      /female|sin-ji|tingting|xiaoxiao|huihui|mei-jia|serena|samantha|zira|siri/i;
+    const languagePrefix = language === "en" ? "en" : "zh";
+    const preferredLocale = language === "en" ? "en-sg" : "zh-sg";
+    const localVoice =
+      voices.find(
+        (voice) => voice.lang.toLowerCase() === preferredLocale && preferredNames.test(voice.name),
+      ) ??
+      voices.find((voice) => voice.lang.toLowerCase() === preferredLocale) ??
+      voices.find(
+        (voice) =>
+          voice.lang.toLowerCase().startsWith(languagePrefix) && preferredNames.test(voice.name),
+      ) ??
+      voices.find((voice) => voice.lang.toLowerCase().startsWith(languagePrefix));
+    if (localVoice) utterance.voice = localVoice;
+
+    const finish = () => {
+      utterance.onend = null;
+      utterance.onerror = null;
+      if (currentUtterance === utterance) {
+        currentUtterance = null;
+        finishUtterance = null;
+      }
+      onPlaybackChange?.(false);
+      resolve();
+    };
+    finishUtterance = finish;
+    utterance.onend = finish;
+    utterance.onerror = finish;
+    onPlaybackChange?.(true);
+    window.speechSynthesis.speak(utterance);
+  });
 }
 
 /** Split spoken text into sentence-sized pieces so audio can start sooner. */
@@ -119,7 +149,11 @@ async function fetchSpeech(
   }
 }
 
-function playQueued(blob: Blob, requestGeneration: number): Promise<boolean> {
+function playQueued(
+  blob: Blob,
+  requestGeneration: number,
+  onPlaybackChange?: (playing: boolean) => void,
+): Promise<boolean> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);
@@ -137,11 +171,17 @@ function playQueued(blob: Blob, requestGeneration: number): Promise<boolean> {
         URL.revokeObjectURL(url);
         currentUrl = null;
       }
+      if (finishCurrentAudio === finish) finishCurrentAudio = null;
+      onPlaybackChange?.(false);
       resolve(ok && requestGeneration === generation);
     };
+    finishCurrentAudio = finish;
     audio.onended = () => finish(true);
     audio.onerror = () => finish(false);
-    audio.play().catch(() => finish(false));
+    audio
+      .play()
+      .then(() => onPlaybackChange?.(true))
+      .catch(() => finish(false));
   });
 }
 
@@ -149,7 +189,11 @@ function playQueued(blob: Blob, requestGeneration: number): Promise<boolean> {
  * Speak the text sentence by sentence: each sentence is generated while the
  * previous one plays, and the returned audio chunks are queued back to back.
  */
-export async function speak(text: string, language: Language): Promise<void> {
+export async function speak(
+  text: string,
+  language: Language,
+  onPlaybackChange?: (playing: boolean) => void,
+): Promise<void> {
   if (typeof window === "undefined" || !text.trim()) return;
   stopSpeaking();
   const requestGeneration = generation;
@@ -172,14 +216,14 @@ export async function speak(text: string, language: Language): Promise<void> {
         // Live speech unavailable: let the device voice read the rest.
         controller.abort();
         if (requestGeneration === generation) {
-          browserSpeak(sentences.slice(index).join(" "), language);
+          await browserSpeak(sentences.slice(index).join(" "), language, onPlaybackChange);
         }
         return;
       }
-      const played = await playQueued(blob, requestGeneration);
+      const played = await playQueued(blob, requestGeneration, onPlaybackChange);
       if (!played) {
         if (requestGeneration === generation) {
-          browserSpeak(sentences.slice(index).join(" "), language);
+          await browserSpeak(sentences.slice(index).join(" "), language, onPlaybackChange);
         }
         return;
       }

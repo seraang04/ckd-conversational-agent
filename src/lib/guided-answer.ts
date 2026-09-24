@@ -1,5 +1,13 @@
 import type { AnswerChoice, AnswerKind } from "./ckd-script";
 
+export type AnswerInputMode = "voice" | "typed";
+
+export type AnswerSubmission = {
+  answer: string;
+  freeText: string | null;
+  inputMode: AnswerInputMode;
+};
+
 export function toggleChoice(
   selected: number[],
   index: number,
@@ -40,4 +48,29 @@ export function formatChoices(
         ? "Selected concerns:"
         : "选择的担忧：";
   return `${heading}\n${labels.map((label, index) => `${kind === "ranking" ? `${index + 1}.` : "•"} ${label}`).join("\n")}`;
+}
+
+export function createAnswerSubmission({
+  selected,
+  choices,
+  kind,
+  language,
+  draft,
+  inputMode,
+}: {
+  selected: number[];
+  choices: AnswerChoice[];
+  kind: AnswerKind;
+  language: "en" | "zh";
+  draft: string;
+  inputMode: AnswerInputMode;
+}): AnswerSubmission {
+  const freeText = draft.trim() || null;
+  return {
+    answer: [formatChoices(selected, choices, kind, language), freeText]
+      .filter(Boolean)
+      .join("\n\n"),
+    freeText,
+    inputMode,
+  };
 }

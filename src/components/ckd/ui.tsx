@@ -1,9 +1,9 @@
 import { useText, LanguageContext, type Language } from "@/lib/language";
 import { Link } from "@tanstack/react-router";
-import { type LucideIcon } from "lucide-react";
+import { LoaderCircle, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-import claraMascot from "@/assets/clara-mascot-display.png";
+import { ClaraMascot } from "@/components/ckd/ClaraMascot";
 import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 
@@ -202,40 +202,31 @@ export function SpeakerBadge({ speaker }: { speaker: string }) {
   );
 }
 
-/** Clara accompanies the user while conversation content loads. */
-export function ClaraPending({ label }: { label?: string }) {
-  const t = useText();
+export function LoadingLabel({ children }: { children: ReactNode }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-5 py-3 text-center">
-      <img
-        src={claraMascot}
-        loading="eager"
-        fetchPriority="high"
-        alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
-        className="h-40 w-40 object-contain sm:h-52 sm:w-52"
-      />
-      {label ? (
-        <p role="status" className="text-xl font-semibold text-foreground">
-          {label}
-        </p>
-      ) : null}
-    </div>
+    <span role="status" className="inline-flex items-center justify-center gap-2">
+      <LoaderCircle className="h-5 w-5 shrink-0 animate-spin" aria-hidden />
+      <span>{children}</span>
+    </span>
   );
 }
 
-export function OpeningConversation() {
+/** The single full-page loading treatment used throughout the conversation. */
+export function ConversationLoading({ label }: { label: string }) {
   const t = useText();
   return (
-    <section className="mx-auto grid min-h-[calc(100dvh-10rem)] w-full max-w-3xl grid-rows-[minmax(11rem,auto)_minmax(14rem,1fr)_auto] gap-4 py-3">
-      <div className="space-y-4" aria-hidden>
-        <div className="h-9 w-3/4 max-w-md animate-pulse rounded-2xl bg-muted" />
-        <div
-          style={{ animationDelay: "0.4s" }}
-          className="h-9 w-1/2 max-w-xs animate-pulse rounded-2xl bg-muted"
-        />
-      </div>
-      <ClaraPending label={t("正在打开对话", "Opening conversation")} />
-      <div />
+    <section
+      aria-busy="true"
+      className="mx-auto flex min-h-[calc(100dvh-10rem)] w-full max-w-3xl flex-col items-center justify-center gap-5 py-3 text-center"
+    >
+      <ClaraMascot
+        state="waiting"
+        alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
+        className="h-40 aspect-[12/13] sm:h-52"
+      />
+      <p role="status" className="text-xl font-semibold text-foreground">
+        {label}
+      </p>
     </section>
   );
 }

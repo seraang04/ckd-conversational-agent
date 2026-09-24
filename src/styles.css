@@ -68,7 +68,6 @@
     sans-serif;
 }
 
-
 :root {
   --radius: 1.25rem;
   --background: oklch(0.985 0.012 88);
@@ -108,7 +107,6 @@
   --sidebar-border: oklch(0.89 0.02 88);
   --sidebar-ring: oklch(0.44 0.078 195);
 }
-
 
 .dark {
   --background: oklch(0.129 0.042 264.695);
@@ -153,5 +151,40 @@
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
+  }
+}
+
+@keyframes clara-frames {
+  0%,
+  24.999% {
+    background-position-x: 0%;
+  }
+  25%,
+  49.999% {
+    background-position-x: 33.333333%;
+  }
+  50%,
+  74.999% {
+    background-position-x: 66.666667%;
+  }
+  75%,
+  100% {
+    background-position-x: 100%;
+  }
+}
+
+.clara-mascot {
+  background-position-y: center;
+  background-repeat: no-repeat;
+  background-size: 400% 100%;
+  animation-name: clara-frames;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clara-mascot {
+    animation: none;
+    background-position-x: 0%;
   }
 }
