@@ -494,7 +494,7 @@ function SessionFlow() {
             entries={entries}
             language={language}
             speaker="caregiver"
-            onSave={saveConversationEntry}
+            onSave={submitAnswer}
             onComplete={() => setStage("caregiver_done")}
           />
         ) : null}
