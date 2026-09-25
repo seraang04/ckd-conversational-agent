@@ -11,6 +11,7 @@ import { useServerFn } from "@tanstack/react-start";
 import {
   Download,
   EyeOff,
+  Heart,
   House,
   Lock,
   Pencil,
@@ -383,30 +384,26 @@ function SessionFlow() {
       }
     >
       <div className="space-y-5">
-        {session.stage === "consent" || session.stage === "checkin" ? (
+        {session.stage === "consent" ? (
           localBackend ? null : (
-            <Card className="space-y-5">
-              <h1 className="text-3xl font-semibold text-foreground">
-                {t("开始对话", "Start conversation")}
-              </h1>
-              <p className="text-lg leading-relaxed text-muted-foreground">
-                {t(
-                  "回答会保存给肾科护理团队。语音回答会送去转成文字。",
-                  "Your answers are saved for your kidney care team. Voice answers are sent for transcription.",
-                )}
-              </p>
-              <BigButton
-                onClick={() =>
-                  void setStage("explore", {
-                    readiness: "ready",
-                    consent_recording: true,
-                    consent_sharing: true,
-                  })
-                }
-              >
-                {t("同意并开始", "Agree and start")}
-              </BigButton>
-            </Card>
+            <OnboardingIntro
+              language={language}
+              onContinue={() =>
+                void setStage("checkin", {
+                  consent_recording: true,
+                  consent_sharing: true,
+                })
+              }
+            />
+          )
+        ) : null}
+
+        {session.stage === "checkin" ? (
+          localBackend ? null : (
+            <EmotionalCheckin
+              language={language}
+              onReady={(readiness) => void setStage("explore", { readiness })}
+            />
           )
         ) : null}
 
@@ -689,6 +686,180 @@ function SensitiveGate({
   );
 }
 
+function OnboardingIntro({
+  language,
+  onContinue,
+}: {
+  language: Language;
+  onContinue: () => void;
+}) {
+  const t = useText(language);
+  const greeting = t(
+    "您好，我是 Clara。",
+    "Hi, I'm Clara.",
+  );
+  useEffect(() => {
+    const timer = window.setTimeout(() => void speak(greeting, language), 0);
+    return () => {
+      window.clearTimeout(timer);
+      stopSpeaking();
+    };
+  }, [greeting, language]);
+  return (
+    <section className="mx-auto w-full max-w-3xl space-y-8 py-3 sm:py-6">
+      <div className="flex items-start gap-5 sm:gap-6">
+        <ClaraMascot
+          state="speaking"
+          alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
+          className="h-28 aspect-[12/13] shrink-0 sm:h-36"
+        />
+        <div className="min-w-0 space-y-4 pt-1">
+          <h1 className="text-3xl font-semibold leading-tight text-foreground sm:text-4xl">
+            {t("您好，我是 Clara。", "Hi, I'm Clara.")}
+          </h1>
+          <p className="text-lg leading-relaxed text-muted-foreground">
+            {t(
+              "我来帮您想想，不同的肾病治疗方式，哪一种最适合您的生活。我们会聊到您最在意的事、您的担心，以及治疗对您日常生活的影响。",
+              "I'll help you think through how different kidney treatment options may fit your daily life. We'll talk about what matters most to you, your concerns, and how treatment might affect your day-to-day.",
+            )}
+          </p>
+          <p className="text-lg leading-relaxed text-muted-foreground">
+            {t(
+              "您的回答会保存供肾科护理团队参考，语音回答会转成文字。没有对错之分，慢慢来就好。",
+              "Your answers are saved for your kidney care team to review. Voice answers will be transcribed. There are no right or wrong answers — take your time.",
+            )}
+          </p>
+        </div>
+      </div>
+      <button
+        type="button"
+        className={quietActionClass}
+        onClick={() => void speak(
+          t(
+            "您好，我是 Clara。我来帮您想想，不同的肾病治疗方式，哪一种最适合您的生活。",
+            "Hi, I'm Clara. I'll help you think through how different kidney treatment options may fit your daily life.",
+          ),
+          language,
+        )}
+      >
+        <Volume2 className="h-6 w-6" aria-hidden />
+        {t("再听一遍", "Hear again")}
+      </button>
+      <BigButton onClick={onContinue}>
+        {t("我明白了，开始吧", "I understand — let's begin")}
+      </BigButton>
+    </section>
+  );
+}
+
+type ReadinessValue = "okay" | "overwhelmed" | "unsure" | "slow";
+
+function EmotionalCheckin({
+  language,
+  onReady,
+}: {
+  language: Language;
+  onReady: (readiness: ReadinessValue) => void;
+}) {
+  const t = useText(language);
+  const [selected, setSelected] = useState<ReadinessValue | null>(null);
+  const question = t("开始之前，您今天感觉怎么样？", "Before we begin, how are you feeling today?");
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void speak(question, language), 0);
+    return () => {
+      window.clearTimeout(timer);
+      stopSpeaking();
+    };
+  }, [question, language]);
+
+  const options: { value: ReadinessValue; zh: string; en: string; responseZh: string; responseEn: string }[] = [
+    {
+      value: "okay",
+      zh: "我可以聊",
+      en: "I'm okay to talk",
+      responseZh: "很好。我们慢慢来，随时可以暂停。",
+      responseEn: "That's great. We'll take it at your pace — you can pause anytime.",
+    },
+    {
+      value: "overwhelmed",
+      zh: "我有点不知所措",
+      en: "I'm feeling a little overwhelmed",
+      responseZh: "完全可以理解。我们会慢慢聊，您随时可以跳过任何问题。",
+      responseEn: "That's completely understandable. We'll go slowly, and you can skip any question at any time.",
+    },
+    {
+      value: "unsure",
+      zh: "我不确定自己的感受",
+      en: "I'm not sure how I feel",
+      responseZh: "没关系，不需要确定。我们随时可以暂停，也可以跳过您不想回答的问题。",
+      responseEn: "That's okay — you don't need to be sure. We can pause at any time, and you can skip questions you'd rather not answer.",
+    },
+    {
+      value: "slow",
+      zh: "我想慢慢来",
+      en: "I'd rather take things slowly",
+      responseZh: "当然可以。您来定节奏，没有时间限制，也没有必须回答的问题。",
+      responseEn: "Of course. You set the pace — there's no time limit, and nothing you must answer.",
+    },
+  ];
+
+  const chosen = options.find((o) => o.value === selected);
+
+  return (
+    <section className="mx-auto w-full max-w-3xl space-y-8 py-3 sm:py-6">
+      <div className="space-y-4">
+        <h1 className="text-3xl font-semibold leading-tight text-foreground sm:text-4xl">
+          {question}
+        </h1>
+        <button
+          type="button"
+          className={quietActionClass}
+          onClick={() => void speak(question, language)}
+        >
+          <Volume2 className="h-6 w-6" aria-hidden />
+          {t("听问题", "Hear question")}
+        </button>
+      </div>
+
+      {!selected ? (
+        <div className="space-y-4">
+          {options.map((opt) => (
+            <BigButton key={opt.value} variant="soft" onClick={() => setSelected(opt.value)}>
+              {t(opt.zh, opt.en)}
+            </BigButton>
+          ))}
+        </div>
+      ) : (
+        <div className="space-y-6">
+          <Notice tone="info">
+            <span className="flex items-start gap-3">
+              <Heart className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
+              <span>{chosen ? t(chosen.responseZh, chosen.responseEn) : ""}</span>
+            </span>
+          </Notice>
+          <p className="text-base leading-relaxed text-muted-foreground">
+            {t(
+              "没有对错之分。您可以随时跳过任何问题，或者要求暂停。",
+              "There are no right or wrong responses. You can skip any question or ask to pause at any time.",
+            )}
+          </p>
+          <BigButton onClick={() => onReady(selected)}>
+            {t("好的，开始吧", "Okay, let's continue")}
+          </BigButton>
+          <button
+            type="button"
+            className={quietActionClass}
+            onClick={() => setSelected(null)}
+          >
+            {t("更改答案", "Change my answer")}
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function CaregiverDone({
   language,
   entries,
@@ -706,10 +877,10 @@ function CaregiverDone({
   return (
     <Card className="mx-auto max-w-3xl space-y-4 text-left">
       <div className="flex items-center gap-4 sm:gap-6">
-        <img
-          src={claraMascot}
+        <ClaraMascot
+          state="idle"
           alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
-          className="h-24 w-20 shrink-0 object-contain sm:h-32 sm:w-24"
+          className="h-24 aspect-[12/13] shrink-0 sm:h-32"
         />
         <div className="min-w-0 space-y-2">
           <h1 className="text-3xl font-semibold text-foreground">
