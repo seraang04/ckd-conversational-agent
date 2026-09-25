@@ -1,26 +1,36 @@
 import { useText, type Language } from "@/lib/language";
-import { Keyboard, Mic, Square, Volume2 } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Keyboard, Mic, Plus, Square, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { BigButton, SpeakerBadge, inputClass, quietActionClass } from "@/components/ckd/ui";
-import claraMascot from "@/assets/clara-mascot-display.png";
+import {
+  BigButton,
+  LoadingLabel,
+  SpeakerBadge,
+  inputClass,
+  quietActionClass,
+} from "@/components/ckd/ui";
+import { ClaraMascot } from "@/components/ckd/ClaraMascot";
 import { startRecording, type Recorder } from "@/lib/recorder";
 import { speak, stopSpeaking, transcribe } from "@/lib/speak";
 import { cn } from "@/lib/utils";
 
 import type { AnswerChoice, AnswerKind } from "@/lib/ckd-script";
-import { toggleChoice, moveChoice, formatChoices } from "@/lib/guided-answer";
+import {
+  createAnswerSubmission,
+  moveChoice,
+  toggleChoice,
+  type AnswerInputMode,
+  type AnswerSubmission,
+} from "@/lib/guided-answer";
 
 type Props = {
-  acknowledgementZh?: string;
-  acknowledgementEn?: string;
   choices?: AnswerChoice[] | undefined;
   answerKind?: AnswerKind;
   questionZh: string;
   questionEn: string;
   language: Language;
   speaker: "patient" | "caregiver";
-  onSubmit: (answer: string, mode: "voice" | "typed") => void;
+  onSubmit: (submission: AnswerSubmission) => void;
   onSkip: () => void;
   onDefer?: () => void;
   busy?: boolean;
@@ -35,8 +45,6 @@ function elapsedTime(seconds: number) {
 export function VoiceAnswer({
   choices,
   answerKind = "single",
-  acknowledgementZh,
-  acknowledgementEn,
   questionZh,
   questionEn,
   language,
@@ -48,19 +56,32 @@ export function VoiceAnswer({
 }: Props) {
   const t = useText(language);
   const question = language === "en" ? questionEn : questionZh;
-  const acknowledgement = language === "en" ? acknowledgementEn : acknowledgementZh;
-  const spokenTurn = acknowledgement ? `${acknowledgement} ${question}` : question;
+  const spokenTurn = question;
   const [selectedChoices, setSelectedChoices] = useState<number[]>([]);
   const [draft, setDraft] = useState("");
   const [recording, setRecording] = useState(false);
   const [working, setWorking] = useState(false);
   const [typing, setTyping] = useState(false);
-  const [answerMode, setAnswerMode] = useState<"voice" | "typed">("typed");
+  const [answerMode, setAnswerMode] = useState<AnswerInputMode>("typed");
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
   const [recordedSeconds, setRecordedSeconds] = useState(0);
+  const [speaking, setSpeaking] = useState(false);
   const recorderRef = useRef<Recorder | null>(null);
   const autoplayTimerRef = useRef<number | null>(null);
+  const speechRunRef = useRef(0);
+
+  const playQuestion = useCallback(async () => {
+    const run = ++speechRunRef.current;
+    setSpeaking(false);
+    try {
+      await speak(spokenTurn, language, (playing) => {
+        if (speechRunRef.current === run) setSpeaking(playing);
+      });
+    } finally {
+      if (speechRunRef.current === run) setSpeaking(false);
+    }
+  }, [language, spokenTurn]);
 
   useEffect(() => {
     setSelectedChoices([]);
@@ -68,7 +89,9 @@ export function VoiceAnswer({
     setTyping(false);
     setAnswerMode("typed");
     setError(null);
+    setSpeaking(false);
     return () => {
+      speechRunRef.current += 1;
       stopSpeaking();
       recorderRef.current?.cancel();
       recorderRef.current = null;
@@ -79,14 +102,14 @@ export function VoiceAnswer({
     // Defer playback so React's development effect replay does not start it twice.
     autoplayTimerRef.current = window.setTimeout(() => {
       autoplayTimerRef.current = null;
-      void speak(spokenTurn, language);
+      void playQuestion();
     }, 0);
     return () => {
       if (autoplayTimerRef.current !== null) window.clearTimeout(autoplayTimerRef.current);
       autoplayTimerRef.current = null;
       stopSpeaking();
     };
-  }, [spokenTurn, language]);
+  }, [playQuestion]);
 
   useEffect(() => {
     if (!recording) return;
@@ -98,6 +121,8 @@ export function VoiceAnswer({
     setError(null);
     if (autoplayTimerRef.current !== null) window.clearTimeout(autoplayTimerRef.current);
     autoplayTimerRef.current = null;
+    speechRunRef.current += 1;
+    setSpeaking(false);
     stopSpeaking();
     try {
       recorderRef.current = await startRecording(setLevel);
@@ -138,264 +163,239 @@ export function VoiceAnswer({
     }
   }, [language, t]);
 
-  const showRecorder = recording || working || (!choices && !draft && !typing);
+  const hasAnswer = selectedChoices.length > 0 || Boolean(draft.trim());
+
+  const submitAnswer = () => {
+    onSubmit(
+      createAnswerSubmission({
+        selected: selectedChoices,
+        choices: choices ?? [],
+        kind: answerKind,
+        language,
+        draft,
+        inputMode: answerMode,
+      }),
+    );
+  };
 
   return (
-    <section className="mx-auto grid min-h-[calc(100dvh-8rem)] w-full max-w-3xl grid-rows-[minmax(11rem,auto)_minmax(14rem,1fr)_auto] gap-4 py-3 sm:min-h-[calc(100dvh-9rem)] sm:grid-rows-[minmax(11rem,auto)_minmax(16rem,1fr)_auto] sm:py-4">
-      <div className="space-y-4">
-        <div className="flex items-start gap-4 sm:gap-6">
-          <div className="relative mt-1 h-24 w-20 shrink-0 overflow-hidden sm:h-32 sm:w-24">
-            <img
-              src={claraMascot}
-              loading="eager"
-              fetchPriority="high"
-              alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
-              className="h-full w-full object-contain object-bottom motion-safe:animate-[pulse_3.6s_ease-in-out_infinite]"
-            />
-          </div>
-          <div className="min-w-0 space-y-3 pt-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-lg font-semibold text-primary">Clara</span>
-              <span className="text-sm text-muted-foreground">
-                {t("对话伙伴", "Conversation companion")}
-              </span>
-              {speaker === "caregiver" ? <SpeakerBadge speaker={speaker} /> : null}
-            </div>
-            {acknowledgement ? (
-              <p className="max-w-2xl text-xl leading-relaxed text-foreground sm:text-2xl">
-                {acknowledgement}
-              </p>
-            ) : null}
-          </div>
-        </div>
-        <h1 className="max-w-2xl text-3xl font-semibold leading-tight text-foreground sm:text-4xl">
+    <section className="mx-auto flex min-h-[calc(100dvh-8rem)] w-full max-w-4xl flex-col gap-7 py-3 sm:min-h-[calc(100dvh-9rem)] sm:gap-8 sm:py-4">
+      <header className="flex flex-col items-center gap-3 text-center">
+        {speaker === "caregiver" ? <SpeakerBadge speaker={speaker} /> : null}
+        <ClaraMascot
+          state={recording ? "listening" : speaking ? "speaking" : working ? "waiting" : "idle"}
+          alt={t("Clara 正在陪您对话", "Clara is here with you")}
+          className="h-36 aspect-[12/13] sm:h-44"
+        />
+        <h1 className="max-w-3xl text-3xl font-semibold leading-tight text-foreground sm:text-4xl">
           {question}
         </h1>
         <button
           type="button"
-          className={quietActionClass}
+          className={cn(quietActionClass, "justify-center")}
           disabled={recording || working}
-          onClick={() => void speak(spokenTurn, language)}
+          onClick={() => void playQuestion()}
         >
-          <Volume2 className="h-6 w-6" aria-hidden />
-          {t("听题目", "Hear question")}
+          <Volume2 className="h-5 w-5" aria-hidden />
+          {t("再听一次", "Play again")}
         </button>
-      </div>
+      </header>
 
-      <div className="space-y-5">
+      <div className="mx-auto w-full max-w-3xl space-y-6">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <button
+            type="button"
+            aria-label={
+              recording ? t("结束录音", "Stop recording") : t("说出回答", "Speak your answer")
+            }
+            onClick={() => (recording ? void finish() : void begin())}
+            disabled={working || busy}
+            className={cn(
+              "flex min-h-20 w-full max-w-md items-center justify-center gap-4 rounded-full px-7 py-4 text-xl font-semibold text-primary-foreground shadow-md transition-[background-color,transform] focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-ring disabled:opacity-60",
+              recording ? "bg-destructive" : "bg-primary hover:bg-primary/90",
+            )}
+            style={
+              recording ? { transform: `scale(${1 + Math.min(level, 0.5) * 0.025})` } : undefined
+            }
+          >
+            {working ? (
+              <LoadingLabel>{t("正在转成文字…", "Turning speech into text…")}</LoadingLabel>
+            ) : recording ? (
+              <>
+                <Square className="h-7 w-7 fill-current" aria-hidden />
+                <span>{t("说完了", "Finish speaking")}</span>
+              </>
+            ) : (
+              <>
+                <Mic className="h-8 w-8" aria-hidden />
+                <span>{draft ? t("继续说", "Speak more") : t("用语音回答", "Speak answer")}</span>
+              </>
+            )}
+          </button>
+          {recording ? (
+            <p className="text-base font-medium text-foreground" role="status">
+              {elapsedTime(recordedSeconds)} · {t("正在聆听", "Listening")}
+            </p>
+          ) : null}
+        </div>
+
         {choices ? (
-          <fieldset disabled={busy || recording || working} className="space-y-3">
-            <legend className="mb-3 text-lg font-semibold">
-              {answerKind === "ranking"
-                ? t(
-                    "选择您重视的事项，再用上移和下移按钮排序。最重要的排第一。您也可以只补充说明。",
-                    "Select what matters to you, then use Move up and Move down to put the most important first. You can also just share your thoughts below.",
-                  )
-                : answerKind === "multiple"
-                  ? t(
-                      "选择所有符合您情况的选项，或直接补充说明。",
-                      "Select all that apply, or share your own thoughts below.",
-                    )
-                  : t(
-                      "选择最符合您想法的一项，或直接补充说明。",
-                      "Choose the closest answer, or share your own thoughts below.",
-                    )}
-            </legend>
+          <fieldset disabled={busy || recording || working} className="space-y-4">
+            <legend className="sr-only">{t("请选择回答", "Choose your answer")}</legend>
             <div className="grid gap-3 sm:grid-cols-2">
-              {choices.map((choice, index) => (
-                <label
-                  key={choice.en}
-                  className={cn(
-                    "flex min-h-14 cursor-pointer items-center gap-3 rounded-xl border p-4 text-lg focus-within:ring-2 focus-within:ring-ring",
-                    selectedChoices.includes(index)
-                      ? "border-primary bg-primary/10"
-                      : "border-border",
-                  )}
-                >
-                  <input
-                    type={answerKind === "single" ? "radio" : "checkbox"}
-                    name="guided-answer"
-                    checked={selectedChoices.includes(index)}
-                    onChange={() =>
-                      setSelectedChoices((selected) =>
-                        toggleChoice(selected, index, choices, answerKind),
-                      )
-                    }
-                    className="h-5 w-5 accent-primary"
-                  />
-                  {t(choice.zh, choice.en)}
-                </label>
-              ))}
-            </div>
-            {answerKind === "ranking" && selectedChoices.length > 0 ? (
-              <ol aria-label={t("优先事项排序", "Priority ranking")} className="space-y-3">
-                {selectedChoices.map((index, position) => {
-                  const choice = choices[index]!;
-                  const label = t(choice.zh, choice.en);
-                  return (
-                    <li
-                      key={choice.en}
-                      className="flex flex-wrap items-center gap-3 rounded-xl border border-border p-3"
+              {choices.map((choice, index) => {
+                const position = selectedChoices.indexOf(index);
+                const selected = position >= 0;
+                return (
+                  <label
+                    key={choice.en}
+                    className={cn(
+                      "flex min-h-16 cursor-pointer items-center gap-4 rounded-2xl border-2 p-4 text-lg font-medium transition-colors focus-within:outline-4 focus-within:outline-offset-2 focus-within:outline-ring",
+                      selected
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-card hover:border-primary/50 hover:bg-secondary/40",
+                    )}
+                  >
+                    <input
+                      type={answerKind === "single" ? "radio" : "checkbox"}
+                      name="guided-answer"
+                      checked={selected}
+                      onChange={() => {
+                        setSelectedChoices((current) => {
+                          const next = toggleChoice(current, index, choices, answerKind);
+                          if (choice.en === "Something else" && next.includes(index)) {
+                            setTyping(true);
+                            setAnswerMode("typed");
+                          }
+                          return next;
+                        });
+                      }}
+                      className="sr-only"
+                    />
+                    <span
+                      aria-hidden
+                      className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-sm font-bold",
+                        selected
+                          ? "border-primary-foreground bg-primary-foreground text-primary"
+                          : "border-muted-foreground/60",
+                      )}
                     >
-                      <span className="flex-1 text-lg">
-                        {position + 1}. {label}
-                      </span>
-                      <button
-                        type="button"
-                        className={quietActionClass}
-                        disabled={position === 0}
-                        aria-label={t(`上移：${label}`, `Move up: ${label}`)}
-                        onClick={() =>
-                          setSelectedChoices((selected) => moveChoice(selected, position, -1))
-                        }
+                      {selected ? (
+                        answerKind === "ranking" ? (
+                          position + 1
+                        ) : (
+                          <Check className="h-5 w-5" />
+                        )
+                      ) : null}
+                    </span>
+                    <span className="min-w-0 text-left">{t(choice.zh, choice.en)}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {answerKind === "ranking" && selectedChoices.length > 1 ? (
+              <div className="rounded-2xl bg-secondary/60 p-4">
+                <h2 className="mb-3 text-base font-semibold text-foreground">
+                  {t("您的排序", "Your order")}
+                </h2>
+                <ol aria-label={t("优先事项排序", "Priority ranking")} className="space-y-2">
+                  {selectedChoices.map((index, position) => {
+                    const choice = choices[index]!;
+                    const label = t(choice.zh, choice.en);
+                    return (
+                      <li
+                        key={choice.en}
+                        className="flex items-center gap-3 rounded-xl bg-card px-3 py-2"
                       >
-                        {t("上移", "Move up")}
-                      </button>
-                      <button
-                        type="button"
-                        className={quietActionClass}
-                        disabled={position === selectedChoices.length - 1}
-                        aria-label={t(`下移：${label}`, `Move down: ${label}`)}
-                        onClick={() =>
-                          setSelectedChoices((selected) => moveChoice(selected, position, 1))
-                        }
-                      >
-                        {t("下移", "Move down")}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-            ) : null}
-            {selectedChoices.length > 0 ? (
-              <button
-                type="button"
-                className={quietActionClass}
-                onClick={() => setSelectedChoices([])}
-              >
-                {t("清除选择", "Clear selection")}
-              </button>
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
+                          {position + 1}
+                        </span>
+                        <span className="min-w-0 flex-1 text-base font-medium sm:text-lg">
+                          {label}
+                        </span>
+                        <button
+                          type="button"
+                          title={t("上移", "Move up")}
+                          disabled={position === 0}
+                          aria-label={t(`上移：${label}`, `Move up: ${label}`)}
+                          onClick={() =>
+                            setSelectedChoices((selected) => moveChoice(selected, position, -1))
+                          }
+                          className="flex h-11 w-11 items-center justify-center rounded-xl text-primary hover:bg-secondary focus-visible:outline-4 focus-visible:outline-ring disabled:opacity-25"
+                        >
+                          <ChevronUp className="h-6 w-6" aria-hidden />
+                        </button>
+                        <button
+                          type="button"
+                          title={t("下移", "Move down")}
+                          disabled={position === selectedChoices.length - 1}
+                          aria-label={t(`下移：${label}`, `Move down: ${label}`)}
+                          onClick={() =>
+                            setSelectedChoices((selected) => moveChoice(selected, position, 1))
+                          }
+                          className="flex h-11 w-11 items-center justify-center rounded-xl text-primary hover:bg-secondary focus-visible:outline-4 focus-visible:outline-ring disabled:opacity-25"
+                        >
+                          <ChevronDown className="h-6 w-6" aria-hidden />
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              </div>
             ) : null}
           </fieldset>
         ) : null}
-        {showRecorder ? (
-          <div className="flex flex-col items-center justify-center gap-4 py-3 text-center">
-            <div
-              className={cn(
-                "rounded-full p-2 transition-colors",
-                recording ? "bg-destructive/15" : "bg-primary/10",
-              )}
-              style={
-                recording ? { transform: `scale(${1 + Math.min(level, 0.5) * 0.08})` } : undefined
-              }
-            >
-              <button
-                type="button"
-                aria-label={
-                  recording ? t("结束录音", "Stop recording") : t("说出回答", "Speak your answer")
-                }
-                onClick={() => (recording ? void finish() : void begin())}
-                disabled={working || busy}
-                className={cn(
-                  "relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-full text-primary-foreground shadow-md transition-colors focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-ring disabled:opacity-60 sm:h-40 sm:w-40",
-                  recording ? "bg-destructive" : "bg-primary hover:bg-primary/90",
-                )}
-              >
-                {working ? (
-                  <span
-                    aria-hidden
-                    className="absolute inset-0 animate-[ping_1.6s_cubic-bezier(0,0,0.2,1)_infinite] rounded-full bg-primary-foreground/25"
-                  />
-                ) : null}
-                {working ? (
-                  <Mic className="h-12 w-12 animate-pulse sm:h-16 sm:w-16" aria-hidden />
-                ) : recording ? (
-                  <Square className="h-10 w-10 fill-current" aria-hidden />
-                ) : (
-                  <Mic className="h-12 w-12" aria-hidden />
-                )}
-              </button>
-            </div>
-            <p className="text-xl font-semibold text-foreground" role="status">
-              {working
-                ? t("正在转成文字…", "Turning speech into text…")
-                : recording
-                  ? t("正在录音", "Recording")
-                  : t("按麦克风说话", "Tap the microphone to speak")}
-            </p>
-            {recording ? (
-              <p className="text-base text-muted-foreground">
-                {elapsedTime(recordedSeconds)} · {t("说完后再按一次", "Tap again when finished")}
-              </p>
-            ) : null}
-          </div>
-        ) : (
+        {typing || draft ? (
           <div className="space-y-4">
             <label htmlFor="answer-draft" className="block text-lg font-semibold text-foreground">
               {choices
-                ? t(
-                    "还有什么想让我们知道的吗？（可选）",
-                    "Anything else you’d like us to know? (optional)",
-                  )
+                ? t("补充说明（可选）", "Add a note (optional)")
                 : t("您的回答", "Your answer")}
             </label>
             <textarea
               id="answer-draft"
-              disabled={busy}
+              disabled={busy || recording || working}
               value={draft}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                setAnswerMode("typed");
+              }}
               rows={3}
               className={cn(inputClass, "text-xl leading-relaxed")}
             />
-            <BigButton
-              onClick={() => {
-                const answer = [
-                  formatChoices(selectedChoices, choices ?? [], answerKind, language),
-                  draft.trim(),
-                ]
-                  .filter(Boolean)
-                  .join("\n\n");
-                onSubmit(answer, answerMode);
-              }}
-              disabled={busy || (!draft.trim() && selectedChoices.length === 0)}
-            >
-              {busy ? t("正在保存…", "Saving…") : t("保存并继续", "Save and continue")}
-            </BigButton>
           </div>
-        )}
-      </div>
-
-      {error ? (
-        <p role="alert" className="text-base text-destructive">
-          {error}
-        </p>
-      ) : null}
-
-      <div className="flex flex-wrap items-center gap-x-8 gap-y-1 border-t border-border pt-3">
-        <button
-          type="button"
-          className={quietActionClass}
-          disabled={busy || working || recording}
-          onClick={() => {
-            if (showRecorder) {
+        ) : (
+          <button
+            type="button"
+            className={cn(quietActionClass, "mx-auto justify-center")}
+            disabled={busy || recording || working}
+            onClick={() => {
               setTyping(true);
               setAnswerMode("typed");
-            } else {
-              void begin();
-            }
-          }}
-        >
-          {showRecorder ? (
-            <Keyboard className="h-5 w-5" aria-hidden />
-          ) : (
-            <Mic className="h-5 w-5" aria-hidden />
-          )}
-          {showRecorder
-            ? t("改用打字", "Type answer")
-            : draft
-              ? t("继续说", "Speak more")
-              : t("改用语音", "Speak instead")}
-        </button>
+            }}
+          >
+            {choices ? (
+              <Plus className="h-5 w-5" aria-hidden />
+            ) : (
+              <Keyboard className="h-5 w-5" aria-hidden />
+            )}
+            {choices ? t("补充说明", "Add a note") : t("改用打字", "Type instead")}
+          </button>
+        )}
+
+        {error ? (
+          <p role="alert" className="text-center text-base text-destructive">
+            {error}
+          </p>
+        ) : null}
+
+        <BigButton onClick={submitAnswer} disabled={busy || working || recording || !hasAnswer}>
+          {busy ? <LoadingLabel>{t("正在保存…", "Saving…")}</LoadingLabel> : t("继续", "Continue")}
+        </BigButton>
+      </div>
+
+      <footer className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-x-7 gap-y-1 border-t border-border pt-4">
         {onDefer ? (
           <button
             type="button"
@@ -414,7 +414,7 @@ export function VoiceAnswer({
         >
           {t("跳过", "Skip")}
         </button>
-      </div>
+      </footer>
     </section>
   );
 }

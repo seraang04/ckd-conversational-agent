@@ -1,9 +1,9 @@
-import claraMascot from "@/assets/clara-mascot-display.png";
+import idleClaraStrip from "@/assets/clara-animation/idle.webp";
 import { normaliseLanguage, useText } from "@/lib/language";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { BigButton, OpeningConversation, Page } from "@/components/ckd/ui";
+import { BigButton, ConversationLoading, Page } from "@/components/ckd/ui";
 import { createConversation, serviceUnavailable } from "@/lib/ckd-db";
 
 export const Route = createFileRoute("/session/")({
@@ -11,7 +11,7 @@ export const Route = createFileRoute("/session/")({
     language: normaliseLanguage(search["language"]),
   }),
   head: () => ({
-    links: [{ rel: "preload", as: "image", href: claraMascot, fetchPriority: "high" }],
+    links: [{ rel: "preload", as: "image", href: idleClaraStrip, fetchPriority: "high" }],
     meta: [{ title: "Opening conversation" }],
   }),
   component: OpenConversation,
@@ -49,7 +49,7 @@ function OpenConversation() {
   if (!serviceUnavailable && !failed) {
     return (
       <Page language={language} minimalHeader>
-        <OpeningConversation />
+        <ConversationLoading label={t("正在打开对话", "Opening conversation")} />
       </Page>
     );
   }

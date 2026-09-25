@@ -21,6 +21,37 @@ const OPENAI_MODEL = process.env["OPENAI_MODEL"] || "gpt-5";
 
 type JsonSchema = Record<string, unknown>;
 
+type ResponsesProvider = {
+  gateway: string;
+  model: string;
+  headers: Record<string, string>;
+};
+
+function responsesProvider(): ResponsesProvider {
+  const openAiKey = process.env["OPENAI_API_KEY"];
+  if (openAiKey) {
+    return {
+      gateway: OPENAI_GATEWAY,
+      model: process.env["OPENAI_RESPONSES_MODEL"] ?? OPENAI_MODEL,
+      headers: { Authorization: `Bearer ${openAiKey}` },
+    };
+  }
+
+  const lovableKey = process.env["LOVABLE_API_KEY"];
+  if (lovableKey) {
+    return {
+      gateway: LOVABLE_GATEWAY,
+      model: LOVABLE_MODEL,
+      headers: {
+        "Lovable-API-Key": lovableKey,
+        "X-Lovable-AIG-SDK": "fetch",
+      },
+    };
+  }
+
+  throw new Error("AI is not configured for this project.");
+}
+
 async function callResponses(body: Record<string, unknown>): Promise<string> {
   const openaiKey = process.env["OPENAI_API_KEY"];
   const lovableKey = process.env["LOVABLE_API_KEY"];
