@@ -31,7 +31,7 @@ function responsesProvider(): ResponsesProvider {
   const openAiKey = process.env["OPENAI_API_KEY"];
   if (openAiKey) {
     return {
-      gateway: OPENAI_GATEWAY,
+      gateway: OPENAI_ENDPOINT,
       model: process.env["OPENAI_RESPONSES_MODEL"] ?? OPENAI_MODEL,
       headers: { Authorization: `Bearer ${openAiKey}` },
     };
