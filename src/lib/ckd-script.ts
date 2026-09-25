@@ -305,4 +305,11 @@ export const SENSITIVE_GATE = {
 
 export const SPOKEN_PROMPTS = [...SCRIPT, SENSITIVE_GATE];
 
+/** Record of what the options step showed; never patient free text. */
+export const OPTIONS_SHOWN_TOPIC = "options-shown";
+/** The patient's questions about the options they were shown. */
+export const OPTIONS_QUESTION_TOPIC = "options-question";
+/** The patient's reaction to the options shown for one dimension. */
+export const optionsReactionTopic = (dimension: string) => `options-${dimension}`;
+
 export const PATIENT_FLOW: Section[] = ["values", "worries", "life", "treatment"];

@@ -10,7 +10,9 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "kb:build": "node scripts/build-treatment-kb.mjs",
+    "review:options": "node scripts/review-options.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"

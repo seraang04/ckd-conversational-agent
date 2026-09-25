@@ -41,6 +41,26 @@ Local development blocks a remote Supabase URL by default. Set `VITE_ALLOW_REMOT
 
 The app generates each displayed question's speech when it is opened or replayed. `/api/speak` sends the English or Mandarin question text to `gpt-4o-mini-tts`; no MP3s are stored in the repository. A generated follow-up question may refer to something the patient said earlier, so its text may include patient information. Review this data flow and both languages' live voices before clinical use. If the speech service or browser autoplay is unavailable, the patient can use **Hear question**; the app also tries the device voice.
 
+### Treatment options step
+
+After the living-donation question, the patient can see how the four kidney treatment options differ on up to three things they said matter to them. The options are PD, haemodialysis at a centre, transplant and conservative kidney management.
+
+- **Facts:** every fact comes from the approved knowledge base in `docs/treatment-options-kb.md`.
+- **AI:** it may only pick statements from that file and write a short opening sentence. Its reply is checked, and the app falls back to a fixed template if the reply fails any check or AI is unavailable.
+- **Saved:** one `options-shown` entry per conversation, recording the knowledge base version, the priorities and whether the AI or template version was used. It feeds the "Options information shown" section of the clinician summary.
+- **More detail:** see [docs/options-step.md](docs/options-step.md), including known gaps.
+
+The step is always on. The patient can skip it.
+
+**Updating the knowledge base:** clinicians edit the markdown. The app reads a generated copy, so every change needs these steps:
+
+1. Edit `docs/treatment-options-kb.md`.
+2. Run `npm run kb:build`. It regenerates `src/lib/treatment-options.data.ts` and stops with a line number if a statement is malformed.
+3. Run `node --test tests/*.test.mjs` and `npx tsc --noEmit`. The tests fail if the generated file is out of date, if an option is missing a statement for a topic, or if the living-donation statements change.
+4. Commit **both** files together: the markdown and `src/lib/treatment-options.data.ts`.
+
+**Reviewing what patients see:** to check the content without running the app, run `npm run review:options`. It rewrites [docs/review/options-review.md](docs/review/options-review.md) with what five synthetic patients would see, in English and Chinese. Run it after changing the knowledge base, and commit the updated report with the rest.
+
 ### Working with the Lovable project
 
 The connected [Lovable project](https://lovable.dev/projects/80a7908c-95f0-4200-bb74-f27375075d74) already has Cloud database enabled and the `ckd_sessions`, `ckd_entries`, and `ckd_summaries` tables. Do not rerun the creation SQL against that database.
