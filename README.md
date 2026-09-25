@@ -41,9 +41,9 @@ Local development blocks a remote Supabase URL by default. Set `VITE_ALLOW_REMOT
 
 The app generates each displayed question's speech when it is opened or replayed. `/api/speak` sends the English or Mandarin question text to `gpt-4o-mini-tts`; no MP3s are stored in the repository. A generated follow-up question may refer to something the patient said earlier, so its text may include patient information. Review this data flow and both languages' live voices before clinical use. If the speech service or browser autoplay is unavailable, the patient can use **Hear question**; the app also tries the device voice.
 
-### Patient-facing supportive facts
+### Patient-facing supportive messages
 
-While Clara prepares the next question, the app shows one of 20 supportive facts about shared decision making and preparing for an appointment. Each completed answer advances to a new message, and the set does not repeat until all 20 have been used. The wording is based on guidance from [NIDDK](https://www.niddk.nih.gov/health-information/kidney-disease/chronic-kidney-disease-ckd/managing) and [NICE](https://www.nice.org.uk/guidance/ng197/chapter/recommendations). Review the English and Simplified Chinese wording with the clinical team before deployment.
+While Clara prepares the next question, the app shows one of 20 brief supportive messages. Each completed answer advances to a new message, and the set does not repeat until all 20 have been used. The language follows the patient-centred communication patterns described by [NIDDK's Ask-Tell-Ask and NURSE guidance](https://www.niddk.nih.gov/health-information/professionals/clinical-tools-patient-management/kidney-disease/identify-manage-patients/talking-patients), [NSW Agency for Clinical Innovation's renal shared decision-making guidance](https://aci.health.nsw.gov.au/networks/renal/resources/choices/options/shared-decision-making), and the [National Kidney Foundation's emotional support guidance](https://www.kidney.org/kidney-topics/managing-your-emotions-while-living-kidney-disease). Review the English and Simplified Chinese wording with the clinical team before deployment.
 
 ### Working with the Lovable project
 

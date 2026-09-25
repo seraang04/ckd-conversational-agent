@@ -22,7 +22,6 @@ test("loading messages progress through 20 unique bilingual statements before re
     assert.deepEqual(questionLoadingMessage(index), message);
     assert.ok(message.en.trim());
     assert.ok(message.zh.trim());
-    assert.doesNotMatch(message.en, /^(You can|Ask|Write)\b/);
   }
 
   assert.deepEqual(questionLoadingMessage(20), QUESTION_LOADING_MESSAGES[0]);

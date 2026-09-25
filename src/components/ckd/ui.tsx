@@ -241,12 +241,9 @@ export function ConversationLoading({
       {message ? (
         <div
           key={messageSeed}
-          className="loading-companion-message min-h-28 w-full max-w-xl rounded-3xl border border-border bg-card px-6 py-5 shadow-sm"
+          className="loading-companion-message flex min-h-24 w-full max-w-xl items-center justify-center rounded-3xl border border-border bg-card px-6 py-5 shadow-sm"
         >
-          <p className="text-sm font-semibold uppercase tracking-wide text-primary">
-            {t("您知道吗？", "Did you know?")}
-          </p>
-          <p className="mt-2 text-lg leading-relaxed text-foreground">
+          <p className="text-xl font-medium leading-relaxed text-foreground">
             {t(message.zh, message.en)}
           </p>
         </div>
