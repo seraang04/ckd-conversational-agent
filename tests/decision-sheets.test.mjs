@@ -22,6 +22,7 @@ const {
   starsForRank,
   buildPatientSheet,
   buildCaregiverSheet,
+  prioritiesFromEntries,
   HELP_ROWS,
   LIFE_FIELDS,
 } = await import(`data:text/javascript;base64,${Buffer.from(sheetsJs).toString("base64")}`);
@@ -107,7 +108,7 @@ test("starsForRank floors at 1 and peaks at 5", () => {
   assert.equal(starsForRank(6), 1);
 });
 
-test("patient sheet: ranking produces correct stars, 'Very important' gives 5, Longevity is null", () => {
+test("patient sheet: ranking produces correct stars, rows follow the conversation options", () => {
   const entries = [
     {
       speaker: "patient",
@@ -128,14 +129,30 @@ test("patient sheet: ranking produces correct stars, 'Very important' gives 5, L
   assert.ok(starsBlock);
 
   const byLabel = Object.fromEntries(starsBlock.rows.map((r) => [r.label, r]));
-  assert.equal(byLabel["Independence"].stars, 5);
+  assert.equal(byLabel["Staying independent"].stars, 5);
   assert.equal(byLabel["Time with family"].stars, 4);
-  assert.equal(byLabel["Work or activities I enjoy"].stars, 3);
+  assert.equal(byLabel["Continuing work or activities I enjoy"].stars, 3);
   assert.equal(byLabel["Feeling comfortable"].stars, 2);
   assert.equal(byLabel["Staying at home for treatment"].stars, 5);
-  assert.equal(byLabel["Longevity"].stars, null);
-  assert.equal(byLabel["Flexibility"].stars, null);
-  assert.equal(byLabel["Minimising treatment burden"].stars, null);
+  for (const removed of ["Longevity", "Flexibility", "Minimising treatment burden"]) {
+    assert.equal(byLabel[removed], undefined);
+  }
+  assert.equal(sheet.subtitle, "My notes as a patient");
+});
+
+test("prioritiesFromEntries lists shared values-1 rankings and ignores unshared answers", () => {
+  const answer =
+    "Priorities (most important first):\n1. Feeling comfortable\n2. Time with family\n\nGardening with my grandson";
+  const shared = [{ speaker: "patient", topic: "values-1", visibility: "shared", answer }];
+  assert.deepEqual(prioritiesFromEntries(shared, "en"), [
+    "Feeling comfortable",
+    "Time with family",
+    "Gardening with my grandson",
+  ]);
+  for (const visibility of ["private", "deferred", "skipped"]) {
+    const entries = [{ speaker: "patient", topic: "values-1", visibility, answer }];
+    assert.deepEqual(prioritiesFromEntries(entries, "en"), []);
+  }
 });
 
 test("the patient's own private answer never appears on either sheet", () => {

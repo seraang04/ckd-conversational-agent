@@ -564,11 +564,29 @@ export async function createSheetPdf(sheet: Sheet, fontBytes: ArrayBuffer): Prom
   return lastResult!.pdf.save();
 }
 
-export async function downloadSheetPdf(sheet: Sheet, filename: string) {
-  const response = await fetch(`${import.meta.env.BASE_URL}fonts/NotoSansCJKsc-Regular.otf`);
-  if (!response.ok) throw new Error("Could not load PDF font");
-  const bytes = await createSheetPdf(sheet, await response.arrayBuffer());
-  const url = URL.createObjectURL(new Blob([new Uint8Array(bytes)], { type: "application/pdf" }));
+// The CJK font is large, so it's fetched once and reused for every preview.
+let fontBytes: Promise<ArrayBuffer> | null = null;
+
+function loadFont() {
+  fontBytes ??= fetch(`${import.meta.env.BASE_URL}fonts/NotoSansCJKsc-Regular.otf`).then(
+    (response) => {
+      if (!response.ok) throw new Error("Could not load PDF font");
+      return response.arrayBuffer();
+    },
+  );
+  fontBytes.catch(() => {
+    fontBytes = null;
+  });
+  return fontBytes;
+}
+
+export async function sheetPdfBlob(sheet: Sheet): Promise<Blob> {
+  const bytes = await createSheetPdf(sheet, await loadFont());
+  return new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+}
+
+export function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;

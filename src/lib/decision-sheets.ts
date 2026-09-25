@@ -156,6 +156,31 @@ function dedupe(items: string[]): string[] {
   return result;
 }
 
+/**
+ * The patient's priorities straight from their shared values-1 answer, for a
+ * report made before there is a confirmed summary to draw on.
+ */
+export function prioritiesFromEntries(entries: SheetEntry[], language: Language): string[] {
+  const entry = findEntry(entries, "patient", "values-1");
+  if (!entry || entry.visibility !== "shared") return [];
+  const question = findQuestion("values-1");
+  const parsed = parseGuidedAnswer(entry.answer, question);
+  const labels = parsed.selected
+    .map((index) => question?.choices?.[index])
+    .filter((choice): choice is NonNullable<typeof choice> => !!choice)
+    .filter((choice) => choice.en !== "Something else")
+    .map((choice) => choice[language]);
+  return dedupe([...labels, ...(parsed.free ? [parsed.free] : [])]);
+}
+
+export function formatPreparedOn(date: Date, language: Language): string {
+  return date.toLocaleDateString(language === "en" ? "en-SG" : "zh-CN", {
+    day: "numeric",
+    month: language === "en" ? "short" : "long",
+    year: "numeric",
+  });
+}
+
 export function buildPatientSheet(
   language: Language,
   entries: SheetEntry[],
@@ -208,27 +233,20 @@ export function buildPatientSheet(
       ? findQuestion("values-2")!.choices![homeChoiceIndex]![language]
       : "";
 
-  const rankRow = (label: string, targetEn: string) => {
-    const rank = rankedLabelIndex(values1Parsed.selected, values1Choices, targetEn);
-    return {
-      label,
-      stars: rank === -1 ? null : starsForRank(rank + 1),
-      note: rank === -1 ? "" : rankNote(rank + 1, language),
-    };
-  };
-
+  // One row per option the patient was offered in the conversation, worded
+  // the same way; "Something else" is only added below when it was ranked.
   const starsRows: { label: string; stars: number | null; note: string }[] = [
-    rankRow(tt("独立自主", "Independence"), "Staying independent"),
-    rankRow(tt("与家人相处的时间", "Time with family"), "Time with family"),
-    rankRow(
-      tt("继续工作或喜欢的活动", "Work or activities I enjoy"),
-      "Continuing work or activities I enjoy",
-    ),
-    rankRow(tt("感觉舒适", "Feeling comfortable"), "Feeling comfortable"),
+    ...values1Choices
+      .filter((choice) => choice.en !== "Something else")
+      .map((choice) => {
+        const rank = rankedLabelIndex(values1Parsed.selected, values1Choices, choice.en);
+        return {
+          label: choice[language],
+          stars: rank === -1 ? null : starsForRank(rank + 1),
+          note: rank === -1 ? "" : rankNote(rank + 1, language),
+        };
+      }),
     { label: tt("在家接受治疗", "Staying at home for treatment"), stars: homeStars, note: homeNote },
-    { label: tt("灵活性", "Flexibility"), stars: null, note: "" },
-    { label: tt("延长寿命", "Longevity"), stars: null, note: "" },
-    { label: tt("减轻治疗负担", "Minimising treatment burden"), stars: null, note: "" },
   ];
 
   const somethingElseRank = rankedLabelIndex(values1Parsed.selected, values1Choices, "Something else");
@@ -330,7 +348,7 @@ export function buildPatientSheet(
   return {
     kind: "patient",
     title: tt("我的肾脏治疗决定", "MY KIDNEY TREATMENT DECISION"),
-    subtitle: "",
+    subtitle: tt("我作为患者的记录", "My notes as a patient"),
     identity: [
       { label: tt("姓名", "Name"), value: "" },
       { label: tt("日期", "Date"), value: preparedOn },

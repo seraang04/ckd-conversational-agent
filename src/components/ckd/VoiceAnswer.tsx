@@ -1,6 +1,6 @@
 import { useText, type Language } from "@/lib/language";
 import { Check, ChevronDown, ChevronUp, Keyboard, Mic, Plus, Square, Volume2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import {
   BigButton,
@@ -34,6 +34,7 @@ type Props = {
   onSkip: () => void;
   onDefer?: () => void;
   busy?: boolean;
+  headerAction?: ReactNode;
 };
 
 function elapsedTime(seconds: number) {
@@ -53,6 +54,7 @@ export function VoiceAnswer({
   onSkip,
   onDefer,
   busy,
+  headerAction,
 }: Props) {
   const t = useText(language);
   const question = language === "en" ? questionEn : questionZh;
@@ -190,15 +192,18 @@ export function VoiceAnswer({
         <h1 className="max-w-3xl text-3xl font-semibold leading-tight text-foreground sm:text-4xl">
           {question}
         </h1>
-        <button
-          type="button"
-          className={cn(quietActionClass, "justify-center")}
-          disabled={recording || working}
-          onClick={() => void playQuestion()}
-        >
-          <Volume2 className="h-5 w-5" aria-hidden />
-          {t("再听一次", "Play again")}
-        </button>
+        <div className="flex flex-wrap items-center justify-center gap-x-6">
+          <button
+            type="button"
+            className={cn(quietActionClass, "justify-center")}
+            disabled={recording || working}
+            onClick={() => void playQuestion()}
+          >
+            <Volume2 className="h-5 w-5" aria-hidden />
+            {t("再听一次", "Play again")}
+          </button>
+          {headerAction}
+        </div>
       </header>
 
       <div className="mx-auto w-full max-w-3xl space-y-6">
