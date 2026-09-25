@@ -61,7 +61,7 @@ async function playAudio(url: string, objectUrl = false): Promise<boolean> {
 function browserSpeak(
   text: string,
   language: Language,
-  onPlaybackChange?: (playing: boolean) => void,
+  onPlaybackStart?: () => void,
 ): Promise<void> {
   if (!window.speechSynthesis) return Promise.resolve();
   return new Promise((resolve) => {
@@ -96,13 +96,12 @@ function browserSpeak(
         currentUtterance = null;
         finishUtterance = null;
       }
-      onPlaybackChange?.(false);
       resolve();
     };
     finishUtterance = finish;
     utterance.onend = finish;
     utterance.onerror = finish;
-    onPlaybackChange?.(true);
+    onPlaybackStart?.();
     window.speechSynthesis.speak(utterance);
   });
 }
@@ -152,7 +151,7 @@ async function fetchSpeech(
 function playQueued(
   blob: Blob,
   requestGeneration: number,
-  onPlaybackChange?: (playing: boolean) => void,
+  onPlaybackStart?: () => void,
 ): Promise<boolean> {
   return new Promise((resolve) => {
     const url = URL.createObjectURL(blob);
@@ -172,7 +171,6 @@ function playQueued(
         currentUrl = null;
       }
       if (finishCurrentAudio === finish) finishCurrentAudio = null;
-      onPlaybackChange?.(false);
       resolve(ok && requestGeneration === generation);
     };
     finishCurrentAudio = finish;
@@ -180,7 +178,7 @@ function playQueued(
     audio.onerror = () => finish(false);
     audio
       .play()
-      .then(() => onPlaybackChange?.(true))
+      .then(() => onPlaybackStart?.())
       .catch(() => finish(false));
   });
 }
@@ -199,6 +197,12 @@ export async function speak(
   const requestGeneration = generation;
   const controller = new AbortController();
   currentRequest = controller;
+  let playbackNotified = false;
+  const notifyPlayback = (playing: boolean) => {
+    if (playbackNotified === playing) return;
+    playbackNotified = playing;
+    onPlaybackChange?.(playing);
+  };
 
   const sentences = splitSentences(text);
   let pending = fetchSpeech(sentences[0]!, language, controller.signal);
@@ -216,20 +220,25 @@ export async function speak(
         // Live speech unavailable: let the device voice read the rest.
         controller.abort();
         if (requestGeneration === generation) {
-          await browserSpeak(sentences.slice(index).join(" "), language, onPlaybackChange);
+          await browserSpeak(sentences.slice(index).join(" "), language, () =>
+            notifyPlayback(true),
+          );
         }
         return;
       }
-      const played = await playQueued(blob, requestGeneration, onPlaybackChange);
+      const played = await playQueued(blob, requestGeneration, () => notifyPlayback(true));
       if (!played) {
         if (requestGeneration === generation) {
-          await browserSpeak(sentences.slice(index).join(" "), language, onPlaybackChange);
+          await browserSpeak(sentences.slice(index).join(" "), language, () =>
+            notifyPlayback(true),
+          );
         }
         return;
       }
     }
   } finally {
     if (currentRequest === controller) currentRequest = null;
+    notifyPlayback(false);
   }
 }
 
