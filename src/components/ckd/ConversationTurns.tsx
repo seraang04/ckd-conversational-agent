@@ -107,7 +107,7 @@ export function ConversationTurns({
       <ConversationLoading
         label={t("正在准备下一题", "Preparing next question")}
         showQuestionMessages
-        messageSeed={context.history.length + (scope === "caregiver" ? 5 : 0)}
+        messageSeed={entries.length}
       />
     );
   }

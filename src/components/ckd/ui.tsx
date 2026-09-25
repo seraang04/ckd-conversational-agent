@@ -1,7 +1,7 @@
 import { useText, LanguageContext, type Language } from "@/lib/language";
 import { Link } from "@tanstack/react-router";
 import { LoaderCircle, type LucideIcon } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { ClaraMascot } from "@/components/ckd/ClaraMascot";
 import logo from "@/assets/logo.png";
@@ -223,16 +223,7 @@ export function ConversationLoading({
   messageSeed?: number;
 }) {
   const t = useText();
-  const [messageStep, setMessageStep] = useState(0);
-
-  useEffect(() => {
-    setMessageStep(0);
-    if (!showQuestionMessages) return;
-    const timer = window.setInterval(() => setMessageStep((step) => step + 1), 6500);
-    return () => window.clearInterval(timer);
-  }, [messageSeed, showQuestionMessages]);
-
-  const message = showQuestionMessages ? questionLoadingMessage(messageSeed, messageStep) : null;
+  const message = showQuestionMessages ? questionLoadingMessage(messageSeed) : null;
 
   return (
     <section
@@ -249,13 +240,11 @@ export function ConversationLoading({
       </p>
       {message ? (
         <div
-          key={`${messageSeed}-${messageStep}`}
+          key={messageSeed}
           className="loading-companion-message min-h-28 w-full max-w-xl rounded-3xl border border-border bg-card px-6 py-5 shadow-sm"
         >
           <p className="text-sm font-semibold uppercase tracking-wide text-primary">
-            {message.kind === "fact"
-              ? t("您知道吗？", "Did you know?")
-              : t("慢慢来", "Take your time")}
+            {t("您知道吗？", "Did you know?")}
           </p>
           <p className="mt-2 text-lg leading-relaxed text-foreground">
             {t(message.zh, message.en)}
