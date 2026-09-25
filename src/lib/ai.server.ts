@@ -1,27 +1,58 @@
 /**
- * Server-only helpers for Lovable AI.
- * Every call goes to the gateway Responses API with streaming, and the stream is
- * consumed here so callers get plain data back.
+ * Server-only helpers for the Responses API.
+ * Local development can call OpenAI directly. Lovable deployments fall back to
+ * the managed AI gateway. The stream is consumed here so callers get plain data.
  */
 
-const GATEWAY = "https://ai.gateway.lovable.dev/v1/responses";
-const MODEL = "openai/gpt-6-astra";
+const OPENAI_GATEWAY = "https://api.openai.com/v1/responses";
+const LOVABLE_GATEWAY = "https://ai.gateway.lovable.dev/v1/responses";
+const OPENAI_MODEL = "gpt-5-mini";
+const LOVABLE_MODEL = "openai/gpt-6-astra";
 
 type JsonSchema = Record<string, unknown>;
 
-async function callResponses(body: Record<string, unknown>): Promise<string> {
-  const key = process.env["LOVABLE_API_KEY"];
-  if (!key) throw new Error("AI is not configured for this project.");
+type ResponsesProvider = {
+  gateway: string;
+  model: string;
+  headers: Record<string, string>;
+};
 
-  const res = await fetch(GATEWAY, {
+function responsesProvider(): ResponsesProvider {
+  const openAiKey = process.env["OPENAI_API_KEY"];
+  if (openAiKey) {
+    return {
+      gateway: OPENAI_GATEWAY,
+      model: process.env["OPENAI_RESPONSES_MODEL"] ?? OPENAI_MODEL,
+      headers: { Authorization: `Bearer ${openAiKey}` },
+    };
+  }
+
+  const lovableKey = process.env["LOVABLE_API_KEY"];
+  if (lovableKey) {
+    return {
+      gateway: LOVABLE_GATEWAY,
+      model: LOVABLE_MODEL,
+      headers: {
+        "Lovable-API-Key": lovableKey,
+        "X-Lovable-AIG-SDK": "fetch",
+      },
+    };
+  }
+
+  throw new Error("AI is not configured for this project.");
+}
+
+async function callResponses(body: Record<string, unknown>): Promise<string> {
+  const provider = responsesProvider();
+
+  const res = await fetch(provider.gateway, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Lovable-API-Key": key,
-      "X-Lovable-AIG-SDK": "fetch",
+      ...provider.headers,
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: provider.model,
       stream: true,
       reasoning: { effort: "low", summary: "auto" },
       include: ["reasoning.encrypted_content"],

@@ -21,14 +21,18 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import claraMascot from "@/assets/clara-mascot-display.png";
+import idleClaraStrip from "@/assets/clara-animation/idle.webp";
+import listeningClaraStrip from "@/assets/clara-animation/listening.webp";
+import speakingClaraStrip from "@/assets/clara-animation/speaking.webp";
+import { ClaraMascot } from "@/components/ckd/ClaraMascot";
 
 import {
   actionControlClass,
   ActionButton,
   BigButton,
   Card,
-  OpeningConversation,
+  ConversationLoading,
+  LoadingLabel,
   Notice,
   Page,
   inputClass,
@@ -49,6 +53,7 @@ import {
 } from "@/lib/ckd-db";
 import { SCRIPT, SENSITIVE_GATE, type ScriptQuestion } from "@/lib/ckd-script";
 import { buildClinicianSummary, buildSynthesis, checkDistress } from "@/lib/ckd.functions";
+import type { AnswerSubmission } from "@/lib/guided-answer";
 import { speak, stopSpeaking } from "@/lib/speak";
 import { cn } from "@/lib/utils";
 
@@ -57,7 +62,11 @@ export const Route = createFileRoute("/session/$code")({
     language: parseLanguage(search["language"]),
   }),
   head: () => ({
-    links: [{ rel: "preload", as: "image", href: claraMascot, fetchPriority: "high" }],
+    links: [
+      { rel: "preload", as: "image", href: idleClaraStrip, fetchPriority: "high" },
+      { rel: "preload", as: "image", href: speakingClaraStrip },
+      { rel: "preload", as: "image", href: listeningClaraStrip },
+    ],
     meta: [
       { title: "Values conversation" },
       {
@@ -214,15 +223,15 @@ function SessionFlow() {
     setSafetySaved(saved);
   }, [setStage]);
 
-  const screenAnswer = useCallback(
-    async (answer: string) => {
+  const screenFreeText = useCallback(
+    async (freeText: string) => {
       if (safetyBlocked.current || session?.stage === "safety_review") return false;
       stopSpeaking();
       let status: "clear" | "risk" | "unavailable" = "unavailable";
       try {
-        status = hasExplicitSafetySignal(answer)
+        status = hasExplicitSafetySignal(freeText)
           ? "risk"
-          : (await distressCheck({ data: { answer } })).status;
+          : (await distressCheck({ data: { answer: freeText } })).status;
       } catch {
         /* Never treat a failed safety check as clearance. */
       }
@@ -245,27 +254,35 @@ function SessionFlow() {
     [distressCheck, persistSafety, safetyStorageKey, session?.stage],
   );
 
-  const handleAnswer = useCallback(
+  const submitAnswer = useCallback(
     async (
       question: ScriptQuestion,
-      answer: string,
-      mode: "voice" | "typed",
+      submission: AnswerSubmission,
       who: "patient" | "caregiver",
       visibility: string,
       afterStage?: string,
     ) => {
       retrySafety.current = () =>
-        void handleAnswer(question, answer, mode, who, visibility, afterStage);
+        void submitAnswer(question, submission, who, visibility, afterStage);
       setBusy(true);
       try {
-        if (!(await screenAnswer(answer))) return;
-        const saved = await saveEntry(question, answer, mode, who, visibility, !afterStage);
-        if (saved && afterStage) await setStage(afterStage);
+        if (safetyBlocked.current || session?.stage === "safety_review") return false;
+        if (submission.freeText && !(await screenFreeText(submission.freeText))) return false;
+        const saved = await saveEntry(
+          question,
+          submission.answer,
+          submission.inputMode,
+          who,
+          visibility,
+          !afterStage,
+        );
+        if (!saved) return false;
+        return afterStage ? await setStage(afterStage) : true;
       } finally {
         setBusy(false);
       }
     },
-    [saveEntry, screenAnswer, setStage],
+    [saveEntry, screenFreeText, session?.stage, setStage],
   );
 
   const handleNoAnswer = useCallback(
@@ -283,35 +300,17 @@ function SessionFlow() {
     [saveEntry, setStage],
   );
 
-  const saveConversationEntry = useCallback(
-    async (
-      question: ScriptQuestion,
-      answer: string,
-      mode: "voice" | "typed",
-      who: "patient" | "caregiver",
-      visibility: string,
-    ) => {
-      retrySafety.current = () =>
-        void saveConversationEntry(question, answer, mode, who, visibility);
-      setBusy(true);
-      try {
-        if (safetyBlocked.current || session?.stage === "safety_review") return false;
-        if (answer.trim() && !(await screenAnswer(answer))) return false;
-        return await saveEntry(question, answer, mode, who, visibility);
-      } finally {
-        setBusy(false);
-      }
-    },
-    [saveEntry, screenAnswer, session?.stage],
-  );
-
   if (safety || session?.stage === "safety_review") {
     return (
       <Page language={language} minimalHeader>
         <SafetySupport
           language={language}
-          unavailable={safety === "unavailable" && session?.stage !== "safety_review"}
-          saved={safetySaved || session?.stage === "safety_review"}
+          {...(safety === "unavailable" && session?.stage !== "safety_review"
+            ? { status: "unavailable" as const }
+            : {
+                status: "risk" as const,
+                saved: safetySaved || session?.stage === "safety_review",
+              })}
           onRetry={() => {
             if (busy) return;
             if (safety === "risk" || session?.stage === "safety_review") void persistSafety();
@@ -325,7 +324,7 @@ function SessionFlow() {
   if (query.isLoading) {
     return (
       <Page language={requestedLanguage ?? "en"} minimalHeader>
-        <OpeningConversation />
+        <ConversationLoading label={t("正在打开对话", "Opening conversation")} />
       </Page>
     );
   }
@@ -411,7 +410,7 @@ function SessionFlow() {
             entries={entries}
             language={language}
             speaker="patient"
-            onSave={saveConversationEntry}
+            onSave={submitAnswer}
             onComplete={() => setStage("gate")}
           />
         ) : null}
@@ -449,11 +448,10 @@ function SessionFlow() {
               language={language}
               speaker="patient"
               busy={busy}
-              onSubmit={(answer, mode) =>
-                void handleAnswer(
+              onSubmit={(submission) =>
+                void submitAnswer(
                   SENSITIVE_QUESTION,
-                  answer,
-                  mode,
+                  submission,
                   "patient",
                   session.stage === "sensitive_private" ? "private" : "shared",
                   "caregiver_intro",
@@ -492,7 +490,7 @@ function SessionFlow() {
             entries={entries}
             language={language}
             speaker="caregiver"
-            onSave={saveConversationEntry}
+            onSave={submitAnswer}
             onComplete={() => setStage("synthesis")}
           />
         ) : null}
@@ -516,10 +514,10 @@ function SessionFlow() {
         {session.stage === "done" ? (
           <Card className="mx-auto max-w-3xl space-y-4 text-left">
             <div className="flex items-center gap-4 sm:gap-6">
-              <img
-                src={claraMascot}
+              <ClaraMascot
+                state="idle"
                 alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
-                className="h-24 w-20 shrink-0 object-contain sm:h-32 sm:w-24"
+                className="h-24 aspect-[12/13] sm:h-32"
               />
               <div className="min-w-0 space-y-2">
                 <h1 className="text-3xl font-semibold text-foreground">
@@ -587,10 +585,14 @@ function SessionFlow() {
                 }}
                 className="flex items-center justify-center gap-2"
               >
-                <Download className="h-6 w-6 shrink-0" aria-hidden />
-                {downloading
-                  ? t("正在生成 PDF…", "Preparing PDF…")
-                  : t("下载摘要 (PDF)", "Download summary (PDF)")}
+                {downloading ? (
+                  <LoadingLabel>{t("正在生成 PDF…", "Preparing PDF…")}</LoadingLabel>
+                ) : (
+                  <>
+                    <Download className="h-6 w-6 shrink-0" aria-hidden />
+                    {t("下载摘要 (PDF)", "Download summary (PDF)")}
+                  </>
+                )}
               </BigButton>
             ) : null}
             <Link to="/" className={cn(quietActionClass, "justify-center")}>
@@ -767,19 +769,21 @@ function Confirmation({
   }, [summary, build]);
 
   if (!summary) {
-    return (
+    return buildFailed ? (
       <Card className="space-y-4">
         <h1 className="text-3xl font-semibold text-foreground">
-          {buildFailed
-            ? t("无法整理摘要", "Could not prepare summary")
-            : t("正在整理摘要…", "Preparing your summary…")}
+          {t("无法整理摘要", "Could not prepare summary")}
         </h1>
-        {buildFailed ? (
-          <BigButton onClick={() => void build()} disabled={working}>
-            {t("重试", "Try again")}
-          </BigButton>
-        ) : null}
+        <BigButton onClick={() => void build()} disabled={working}>
+          {working ? (
+            <LoadingLabel>{t("正在重试…", "Retrying…")}</LoadingLabel>
+          ) : (
+            t("重试", "Try again")
+          )}
+        </BigButton>
       </Card>
+    ) : (
+      <ConversationLoading label={t("正在整理摘要", "Preparing your summary")} />
     );
   }
 
@@ -937,7 +941,11 @@ function Confirmation({
       )}
 
       <BigButton onClick={() => void confirm()} disabled={working}>
-        {working ? t("正在保存…", "Saving…") : t("确认摘要", "Confirm summary")}
+        {working ? (
+          <LoadingLabel>{t("正在保存…", "Saving…")}</LoadingLabel>
+        ) : (
+          t("确认摘要", "Confirm summary")
+        )}
       </BigButton>
     </div>
   );

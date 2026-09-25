@@ -7,7 +7,7 @@ const source = await readFile(new URL("../src/lib/guided-answer.ts", import.meta
 const js = ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
 }).outputText;
-const { toggleChoice, moveChoice, formatChoices } = await import(
+const { toggleChoice, moveChoice, formatChoices, createAnswerSubmission } = await import(
   `data:text/javascript;base64,${Buffer.from(js).toString("base64")}`
 );
 const choices = [
@@ -44,4 +44,35 @@ test("saved answers distinguish rankings from unordered selections in both langu
   assert.equal(formatChoices([0, 1], choices, "multiple", "zh"), "选择的担忧：\n• 家人\n• 独立");
   assert.equal(formatChoices([0], choices, "single", "en"), "Family");
   assert.equal(formatChoices([], choices, "ranking", "en"), "");
+});
+
+test("submissions keep predefined choices separate from patient supplied text", () => {
+  assert.deepEqual(
+    createAnswerSubmission({
+      selected: [1, 0],
+      choices,
+      kind: "ranking",
+      language: "en",
+      draft: "  I also want to keep gardening.  ",
+      inputMode: "typed",
+    }),
+    {
+      answer:
+        "Priorities (most important first):\n1. Independence\n2. Family\n\nI also want to keep gardening.",
+      freeText: "I also want to keep gardening.",
+      inputMode: "typed",
+    },
+  );
+
+  assert.deepEqual(
+    createAnswerSubmission({
+      selected: [0],
+      choices,
+      kind: "single",
+      language: "en",
+      draft: "",
+      inputMode: "typed",
+    }),
+    { answer: "Family", freeText: null, inputMode: "typed" },
+  );
 });

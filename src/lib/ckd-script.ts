@@ -25,14 +25,14 @@ const GENERAL_PATIENT_QUESTIONS: ScriptQuestion[] = [
       { zh: "其他", en: "Something else" },
     ],
     section: "values",
-    zh: "我们慢慢来。您愿意选出现在生活里最重要的事，并按重要程度排序吗？",
-    en: "We can take this slowly. Which things matter most to you right now, and in what order?",
+    zh: "现在生活中，哪些事情对您最重要？",
+    en: "What matters most to you right now?",
   },
   {
     id: "values-3",
     section: "values",
-    zh: "如果您愿意说，有什么喜欢的事，是您希望以后还能继续做的？",
-    en: "If you're comfortable sharing, what's something you enjoy and hope to keep doing?",
+    zh: "您希望以后还能继续做什么？",
+    en: "What do you hope to keep doing?",
   },
   {
     id: "worries-1",
@@ -47,14 +47,20 @@ const GENERAL_PATIENT_QUESTIONS: ScriptQuestion[] = [
       { zh: "目前没有担忧", en: "No worries at the moment", exclusive: true },
     ],
     section: "worries",
-    zh: "想到接下来的治疗，心里可能会有些担心。您愿意说说最让您挂心的是什么吗？",
-    en: "Thinking about treatment can bring up worries. What feels most concerning to you?",
+    zh: "关于治疗，您最担心什么？",
+    en: "What worries you most about treatment?",
+  },
+  {
+    id: "life-2",
+    section: "life",
+    zh: "去看诊时，什么事情会让您觉得不方便？",
+    en: "What makes it difficult to get to appointments?",
   },
   {
     id: "life-3",
     section: "life",
-    zh: "在家里，有没有谁是您觉得可以依靠、愿意帮您的？",
-    en: "At home, is there someone you feel you can rely on for help?",
+    zh: "在家里，谁可以帮助您？",
+    en: "Who can help you at home?",
   },
 ];
 
@@ -244,8 +250,8 @@ const CAREGIVER_QUESTIONS: ScriptQuestion[] = [
   {
     id: "caregiver-2",
     section: "caregiver",
-    zh: "您愿意说说，平时是怎么陪伴和帮助病人的吗？",
-    en: "Would you tell me a little about how you support and care for the patient?",
+    zh: "您平时怎样帮助病人？",
+    en: "How do you help care for the patient?",
   },
   {
     id: "caregiver-3",
@@ -260,14 +266,14 @@ const CAREGIVER_QUESTIONS: ScriptQuestion[] = [
       { zh: "目前没有担忧", en: "No worries at the moment", exclusive: true },
     ],
     section: "caregiver",
-    zh: "照顾病人的过程中，有什么事情是您比较挂心的吗？",
-    en: "As you care for them, is there anything that's been weighing on your mind?",
+    zh: "照顾病人时，您最担心什么？",
+    en: "What worries you about caring for the patient?",
   },
   {
     id: "caregiver-4",
     section: "caregiver",
-    zh: "如果有些话您想私下说，可以告诉我。有什么事想单独和肾科协调员谈吗？",
-    en: "If there's something you'd rather share privately, is there anything you'd like to discuss with the renal coordinator?",
+    zh: "您想私下和肾科协调员谈什么？",
+    en: "What would you like to discuss privately with the renal coordinator?",
   },
 ];
 
