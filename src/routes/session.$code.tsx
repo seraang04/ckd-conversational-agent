@@ -52,7 +52,13 @@ import {
   type SummaryRow,
 } from "@/lib/ckd-db";
 import { SCRIPT, SENSITIVE_GATE, type ScriptQuestion } from "@/lib/ckd-script";
-import { buildClinicianSummary, buildSynthesis, checkDistress } from "@/lib/ckd.functions";
+import {
+  buildClinicianSummary,
+  buildSynthesis,
+  checkDistress,
+  inferCaregiverHelp,
+  inferPatientLifeDetails,
+} from "@/lib/ckd.functions";
 import type { AnswerSubmission } from "@/lib/guided-answer";
 import { speak, stopSpeaking } from "@/lib/speak";
 import { cn } from "@/lib/utils";
@@ -134,6 +140,7 @@ function SessionFlow() {
   const distressCheck = useServerFn(checkDistress);
   const synthesise = useServerFn(buildSynthesis);
   const summarise = useServerFn(buildClinicianSummary);
+  const inferLifeDetails = useServerFn(inferPatientLifeDetails);
 
   const bundle = query.data;
   const session = bundle?.session;
@@ -353,7 +360,7 @@ function SessionFlow() {
     );
   }
 
-  const isCaregiverStage = session.stage === "caregiver";
+  const isCaregiverStage = session.stage === "caregiver" || session.stage === "caregiver_done";
   const summary = bundle?.summary;
   const hasSummaryContent = summary
     ? SUMMARY_SECTIONS.some((section) => (summary[section.key]?.length ?? 0) > 0)
@@ -490,8 +497,16 @@ function SessionFlow() {
             entries={entries}
             language={language}
             speaker="caregiver"
-            onSave={submitAnswer}
-            onComplete={() => setStage("synthesis")}
+            onSave={saveConversationEntry}
+            onComplete={() => setStage("caregiver_done")}
+          />
+        ) : null}
+
+        {session.stage === "caregiver_done" ? (
+          <CaregiverDone
+            language={language}
+            entries={entries}
+            onContinue={() => void setStage("synthesis")}
           />
         ) : null}
 
@@ -561,16 +576,38 @@ function SessionFlow() {
                 onClick={async () => {
                   setDownloading(true);
                   try {
-                    const { downloadSummaryPdf } = await import("@/lib/summary-pdf");
-                    await downloadSummaryPdf(
-                      t("对话摘要", "Conversation summary"),
-                      SUMMARY_SECTIONS.map((section) => ({
-                        heading: t(section.zh, section.en),
-                        answers: (summary[section.key] ?? []).map((answer) =>
-                          translatedText(answer, language),
-                        ),
-                      })),
-                      language,
+                    const { buildPatientSheet } = await import("@/lib/decision-sheets");
+                    const { downloadSheetPdf } = await import("@/lib/summary-pdf");
+                    const confirmed = {
+                      patientPriorities: summary.patient_priorities.map((item) =>
+                        translatedText(item, language),
+                      ),
+                      sharedConcerns: summary.shared_concerns.map((item) =>
+                        translatedText(item, language),
+                      ),
+                    };
+                    const preparedOn = new Date(session.completed_at ?? Date.now()).toLocaleDateString(
+                      language === "en" ? "en-SG" : "zh-CN",
+                      { day: "numeric", month: language === "en" ? "short" : "long", year: "numeric" },
+                    );
+                    // A best-effort read of what the patient said; if it fails or is
+                    // unconfigured, these rows are just left blank, same as before.
+                    const lifeDetails = await inferLifeDetails({
+                      data: {
+                        entries: entries
+                          .filter((e) => e.speaker === "patient" && e.visibility === "shared")
+                          .map((e) => ({
+                            speaker: e.speaker,
+                            question: e.question,
+                            answer: e.answer,
+                            visibility: e.visibility,
+                          })),
+                        language,
+                      },
+                    }).catch(() => ({}));
+                    await downloadSheetPdf(
+                      buildPatientSheet(language, entries, confirmed, preparedOn, lifeDetails),
+                      `my-treatment-priorities-${language}.pdf`,
                     );
                   } catch {
                     toast.error(
@@ -585,14 +622,10 @@ function SessionFlow() {
                 }}
                 className="flex items-center justify-center gap-2"
               >
-                {downloading ? (
-                  <LoadingLabel>{t("正在生成 PDF…", "Preparing PDF…")}</LoadingLabel>
-                ) : (
-                  <>
-                    <Download className="h-6 w-6 shrink-0" aria-hidden />
-                    {t("下载摘要 (PDF)", "Download summary (PDF)")}
-                  </>
-                )}
+                <Download className="h-6 w-6 shrink-0" aria-hidden />
+                {downloading
+                  ? t("正在生成 PDF…", "Preparing PDF…")
+                  : t("下载我的治疗优先事项 (PDF)", "Download my treatment priorities (PDF)")}
               </BigButton>
             ) : null}
             <Link to="/" className={cn(quietActionClass, "justify-center")}>
@@ -656,9 +689,137 @@ function SensitiveGate({
   );
 }
 
+function CaregiverDone({
+  language,
+  entries,
+  onContinue,
+}: {
+  language: Language;
+  entries: EntryRow[];
+  onContinue: () => void;
+}) {
+  const t = useText(language);
+  const [downloading, setDownloading] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+  const inferHelp = useServerFn(inferCaregiverHelp);
+
+  return (
+    <Card className="mx-auto max-w-3xl space-y-4 text-left">
+      <div className="flex items-center gap-4 sm:gap-6">
+        <img
+          src={claraMascot}
+          alt={t("对话伙伴 Clara", "Clara, your conversation companion")}
+          className="h-24 w-20 shrink-0 object-contain sm:h-32 sm:w-24"
+        />
+        <div className="min-w-0 space-y-2">
+          <h1 className="text-3xl font-semibold text-foreground">
+            {t("谢谢您的分享", "Thank you for sharing")}
+          </h1>
+        </div>
+      </div>
+      <p className="text-lg leading-relaxed text-muted-foreground">
+        {t(
+          "这些记录只供您参考，可以带去看诊。请在把设备交还之前下载，之后就不会再显示了。",
+          "These notes are just for you, to bring to the appointment. Please download them before you pass the device back – they won't be shown again.",
+        )}
+      </p>
+      <BigButton
+        disabled={downloading}
+        onClick={async () => {
+          setDownloading(true);
+          try {
+            const { buildCaregiverSheet } = await import("@/lib/decision-sheets");
+            const { downloadSheetPdf } = await import("@/lib/summary-pdf");
+            const preparedOn = new Date().toLocaleDateString(
+              language === "en" ? "en-SG" : "zh-CN",
+              { day: "numeric", month: language === "en" ? "short" : "long", year: "numeric" },
+            );
+            const howIHelp = entries.find(
+              (e) => e.speaker === "caregiver" && e.topic === "caregiver-2" && e.visibility === "shared",
+            );
+            // A best-effort read of the caregiver's own words; if it fails or
+            // is unconfigured, the grid is just left blank, same as before.
+            const helpCapacity = howIHelp
+              ? await inferHelp({ data: { answer: howIHelp.answer } }).catch(() => ({}))
+              : {};
+            await downloadSheetPdf(
+              buildCaregiverSheet(language, entries, preparedOn, helpCapacity),
+              `caregiver-notes-${language}.pdf`,
+            );
+            setDownloaded(true);
+          } catch {
+            toast.error(
+              t("无法下载记录，请重试。", "Could not download your notes. Please try again."),
+            );
+          } finally {
+            setDownloading(false);
+          }
+        }}
+        className="flex items-center justify-center gap-2"
+      >
+        <Download className="h-6 w-6 shrink-0" aria-hidden />
+        {downloading
+          ? t("正在生成 PDF…", "Preparing PDF…")
+          : downloaded
+            ? t("再次下载我的记录 (PDF)", "Download my notes again (PDF)")
+            : t("下载我的记录 (PDF)", "Download my notes (PDF)")}
+      </BigButton>
+      <p className="text-base leading-relaxed text-muted-foreground">
+        {t(
+          "您私下分享的内容不会印在记录上。",
+          "Anything you shared privately is not printed in the notes.",
+        )}
+      </p>
+      <BigButton variant="soft" onClick={onContinue}>
+        {downloaded
+          ? t("完成，交还设备", "Done – pass the device back")
+          : t("跳过，交还设备", "Skip – pass the device back")}
+      </BigButton>
+    </Card>
+  );
+}
+
 type EditableItem = { text: string; include: boolean };
 
-function editableSummary(summary: SummaryRow, language: Language) {
+/** A short, human name for a deferred/private topic, never its answer text. */
+function deferredTopicLabel(
+  entry: Pick<EntryRow, "topic" | "question">,
+  t: ReturnType<typeof useText>,
+  language: Language,
+) {
+  if (entry.topic === "sensitive-1") {
+    return t("换肾或家人捐肾", "Kidney transplant or family donation");
+  }
+  if (entry.topic === "caregiver-4") {
+    return t("照顾者想私下谈", "Caregiver wants to talk privately");
+  }
+  return entry.question.split(" / ")[language === "en" ? 1 : 0] ?? entry.question;
+}
+
+/** Topics the patient herself deferred or kept private — safe for her to review. */
+function patientFlaggedTopics(entries: EntryRow[], t: ReturnType<typeof useText>, language: Language) {
+  return entries
+    .filter((e) => e.speaker === "patient" && (e.visibility === "deferred" || e.visibility === "private"))
+    .map((e) => deferredTopicLabel(e, t, language));
+}
+
+/** Topics the caregiver deferred or kept private — never shown to the patient. */
+function caregiverFlaggedTopics(entries: EntryRow[], t: ReturnType<typeof useText>, language: Language) {
+  return entries
+    .filter((e) => e.speaker === "caregiver" && (e.visibility === "deferred" || e.visibility === "private"))
+    .map((e) =>
+      e.topic === "caregiver-4"
+        ? deferredTopicLabel(e, t, language)
+        : `${t("照顾者", "Caregiver")}: ${deferredTopicLabel(e, t, language)}`,
+    );
+}
+
+function editableSummary(
+  summary: SummaryRow,
+  language: Language,
+  entries: EntryRow[],
+  t: ReturnType<typeof useText>,
+) {
   const items = {} as Record<SummaryKey, EditableItem[]>;
   for (const section of SUMMARY_SECTIONS) {
     items[section.key] = (summary[section.key] ?? []).map((text) => ({
@@ -666,6 +827,13 @@ function editableSummary(summary: SummaryRow, language: Language) {
       include: true,
     }));
   }
+  // "Discuss at your appointment" is reviewed here by the patient, so it can
+  // only ever be seeded from her own deferred/private topics — never the
+  // caregiver's, regardless of what the synthesised summary contains.
+  items.flagged_topics = patientFlaggedTopics(entries, t, language).map((text) => ({
+    text,
+    include: true,
+  }));
   return items;
 }
 
@@ -707,18 +875,10 @@ function Confirmation({
     setWorking(true);
     setBuildFailed(false);
     try {
-      const deferred = entries
-        .filter((e) => e.visibility === "deferred" || e.visibility === "private")
-        .map((e) => {
-          if (e.topic === "sensitive-1") {
-            return t("亲近的人或家人捐肾", "Living or family kidney donation");
-          }
-          if (e.topic === "caregiver-4") {
-            return t("照顾者想私下谈", "Caregiver wants to talk privately");
-          }
-          const question = e.question.split(" / ")[language === "en" ? 1 : 0] ?? e.question;
-          return e.speaker === "caregiver" ? `${t("照顾者", "Caregiver")}: ${question}` : question;
-        });
+      const deferred = [
+        ...patientFlaggedTopics(entries, t, language),
+        ...caregiverFlaggedTopics(entries, t, language),
+      ];
       const shared = entries.filter((e) => e.visibility === "shared" && e.answer.trim());
       const result = localBackend
         ? {
@@ -787,7 +947,7 @@ function Confirmation({
     );
   }
 
-  const reviewItems = items ?? editableSummary(summary, language);
+  const reviewItems = items ?? editableSummary(summary, language, entries, t);
 
   const confirm = async () => {
     setWorking(true);
@@ -802,7 +962,9 @@ function Confirmation({
         caregiverSupport: picked("caregiver_support"),
         sharedConcerns: picked("shared_concerns"),
         differingConcerns: picked("differing_concerns"),
-        flaggedTopics: picked("flagged_topics"),
+        // The patient only ever reviews/edits her own flagged topics; the
+        // caregiver's are preserved untouched so the care team still sees them.
+        flaggedTopics: [...picked("flagged_topics"), ...caregiverFlaggedTopics(entries, t, language)],
       };
       const text = localBackend
         ? [
@@ -830,7 +992,7 @@ function Confirmation({
 
   const update = (key: SummaryKey, index: number, patch: Partial<EditableItem>) => {
     setItems((prev) => {
-      const current = prev ?? editableSummary(summary, language);
+      const current = prev ?? editableSummary(summary, language, entries, t);
       const list = [...current[key]];
       const existing = list[index];
       if (!existing) return current;
@@ -845,59 +1007,115 @@ function Confirmation({
         {t("确认您的摘要", "Review your summary")}
       </h1>
 
-      <div className="grid gap-4 md:grid-cols-2 md:items-start">
-        {SUMMARY_SECTIONS.filter((section) => reviewItems[section.key].length > 0).map(
-          (section) => (
-            <Card key={section.key} className="space-y-4">
-              <h2 className="text-xl font-semibold text-foreground">{t(section.zh, section.en)}</h2>
-              {reviewItems[section.key].map((item, index) => {
-                const itemKey = `${section.key}-${index}`;
-                return (
-                  <div key={itemKey} className="rounded-2xl border border-border p-4">
-                    {editing === itemKey ? (
-                      <textarea
-                        autoFocus
-                        aria-label={t(
-                          `${section.zh}，第 ${index + 1} 点`,
-                          `${section.en}, point ${index + 1}`,
-                        )}
-                        value={item.text}
-                        rows={3}
-                        onChange={(event) =>
-                          update(section.key, index, { text: event.target.value })
-                        }
-                        className={`${inputClass} text-lg`}
-                      />
-                    ) : (
-                      <p
-                        className={`text-lg leading-relaxed ${item.include ? "text-foreground" : "text-muted-foreground line-through"}`}
-                      >
-                        {item.text}
-                      </p>
+      <Card className="space-y-4">
+        <h2 className="text-xl font-semibold text-foreground">
+          {t("您在意的事", "What matters to you")}
+        </h2>
+        {reviewItems.patient_priorities.length === 0 ? (
+          <p className="text-lg leading-relaxed text-muted-foreground">
+            {t(
+              "还没有内容，您可以在下面补充。",
+              "Nothing here yet — you can add something below.",
+            )}
+          </p>
+        ) : null}
+        {reviewItems.patient_priorities.map((item, index) => {
+          const itemKey = `patient_priorities-${index}`;
+          return (
+            <div key={itemKey} className="rounded-2xl border border-border p-4">
+              {editing === itemKey ? (
+                <textarea
+                  autoFocus
+                  aria-label={t(
+                    `您在意的事，第 ${index + 1} 点`,
+                    `What matters to you, point ${index + 1}`,
+                  )}
+                  value={item.text}
+                  rows={3}
+                  onChange={(event) =>
+                    update("patient_priorities", index, { text: event.target.value })
+                  }
+                  className={`${inputClass} text-lg`}
+                />
+              ) : (
+                <p
+                  className={`text-lg leading-relaxed ${item.include ? "text-foreground" : "text-muted-foreground line-through"}`}
+                >
+                  {item.text}
+                </p>
+              )}
+              <div className="mt-2 flex flex-wrap gap-4">
+                <ActionButton
+                  icon={Pencil}
+                  onClick={() => setEditing(editing === itemKey ? null : itemKey)}
+                  className="min-h-11 px-3 py-1"
+                >
+                  {editing === itemKey ? t("改好了", "Done editing") : t("修改", "Edit")}
+                </ActionButton>
+                <ActionButton
+                  icon={item.include ? EyeOff : RotateCcw}
+                  onClick={() => update("patient_priorities", index, { include: !item.include })}
+                  className="min-h-11 px-3 py-1"
+                >
+                  {item.include ? t("不放进摘要", "Leave out") : t("放回摘要", "Put back")}
+                </ActionButton>
+              </div>
+            </div>
+          );
+        })}
+      </Card>
+
+      {reviewItems.flagged_topics.length > 0 ? (
+        <Card className="space-y-4">
+          <h2 className="text-xl font-semibold text-foreground">
+            {t("看诊时再谈", "Discuss at your appointment")}
+          </h2>
+          {reviewItems.flagged_topics.map((item, index) => {
+            const itemKey = `flagged_topics-${index}`;
+            return (
+              <div key={itemKey} className="rounded-2xl border border-border p-4">
+                {editing === itemKey ? (
+                  <textarea
+                    autoFocus
+                    aria-label={t(
+                      `看诊时再谈，第 ${index + 1} 点`,
+                      `Discuss at your appointment, point ${index + 1}`,
                     )}
-                    <div className="mt-2 flex flex-wrap gap-4">
-                      <ActionButton
-                        icon={Pencil}
-                        onClick={() => setEditing(editing === itemKey ? null : itemKey)}
-                        className="min-h-11 px-3 py-1"
-                      >
-                        {editing === itemKey ? t("改好了", "Done editing") : t("修改", "Edit")}
-                      </ActionButton>
-                      <ActionButton
-                        icon={item.include ? EyeOff : RotateCcw}
-                        onClick={() => update(section.key, index, { include: !item.include })}
-                        className="min-h-11 px-3 py-1"
-                      >
-                        {item.include ? t("不放进摘要", "Leave out") : t("放回摘要", "Put back")}
-                      </ActionButton>
-                    </div>
-                  </div>
-                );
-              })}
-            </Card>
-          ),
-        )}
-      </div>
+                    value={item.text}
+                    rows={3}
+                    onChange={(event) =>
+                      update("flagged_topics", index, { text: event.target.value })
+                    }
+                    className={`${inputClass} text-lg`}
+                  />
+                ) : (
+                  <p
+                    className={`text-lg leading-relaxed ${item.include ? "text-foreground" : "text-muted-foreground line-through"}`}
+                  >
+                    {item.text}
+                  </p>
+                )}
+                <div className="mt-2 flex flex-wrap gap-4">
+                  <ActionButton
+                    icon={Pencil}
+                    onClick={() => setEditing(editing === itemKey ? null : itemKey)}
+                    className="min-h-11 px-3 py-1"
+                  >
+                    {editing === itemKey ? t("改好了", "Done editing") : t("修改", "Edit")}
+                  </ActionButton>
+                  <ActionButton
+                    icon={item.include ? EyeOff : RotateCcw}
+                    onClick={() => update("flagged_topics", index, { include: !item.include })}
+                    className="min-h-11 px-3 py-1"
+                  >
+                    {item.include ? t("不放进摘要", "Leave out") : t("放回摘要", "Put back")}
+                  </ActionButton>
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      ) : null}
 
       {adding ? (
         <Card className="space-y-3">
@@ -918,7 +1136,7 @@ function Confirmation({
             onClick={() => {
               if (!addition.trim()) return;
               setItems((prev) => {
-                const current = prev ?? editableSummary(summary, language);
+                const current = prev ?? editableSummary(summary, language, entries, t);
                 return {
                   ...current,
                   patient_priorities: [
