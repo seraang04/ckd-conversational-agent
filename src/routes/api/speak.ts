@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/speak")({
         const fishAttempt =
           language === "zh"
           ? { key: process.env["FISH_AUDIO_API_KEY"], model: "af3ae80581b44053bd207f1693bdc3a6" }
-            : { key: process.env["FISH_AUDIO_API_KEY_EN"], model: "8545838ab4b047b48e689b86d0e6c2d8" };
+            : { key: process.env["FISH_AUDIO_API_KEY_EN"], model: "f4eebdcedbcd4c969a77c37d54219926" };
         if (fishAttempt.key) {
           try {
             const res = await fetch("https://api.fish.audio/v1/tts", {

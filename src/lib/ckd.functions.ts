@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { conversationContext } from "./conversation";
+import { conversationContext, requiredQuestionForEarlyCompletion } from "./conversation";
+import type { ScriptQuestion } from "./ckd-script";
 
 const EntrySchema = z.object({
   speaker: z.string(),
@@ -144,6 +145,17 @@ const TurnSchema = z.object({
   questionEn: z.string().max(800),
 });
 
+function scriptedTurn(question: ScriptQuestion) {
+  return {
+    complete: false,
+    topic: question.id,
+    acknowledgementZh: "",
+    acknowledgementEn: "",
+    questionZh: question.zh,
+    questionEn: question.en,
+  };
+}
+
 /** Choose one short question from the conversation so far. */
 export const nextConversationTurn = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) =>
@@ -211,6 +223,11 @@ When complete, use empty topic and question fields.`,
         },
       ),
     );
+    const requiredFallback = requiredQuestionForEarlyCompletion(
+      context.requiredTopics,
+      result.complete,
+    );
+    if (requiredFallback) return scriptedTurn(requiredFallback);
     if (result.complete) {
       if (!context.history.length) throw new Error("Conversation ended before it began");
       return finished;
