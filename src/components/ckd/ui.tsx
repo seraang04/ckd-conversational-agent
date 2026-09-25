@@ -1,10 +1,11 @@
 import { useText, LanguageContext, type Language } from "@/lib/language";
 import { Link } from "@tanstack/react-router";
 import { LoaderCircle, type LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import { ClaraMascot } from "@/components/ckd/ClaraMascot";
 import logo from "@/assets/logo.png";
+import { questionLoadingMessage } from "@/lib/loading-messages";
 import { cn } from "@/lib/utils";
 
 export function BrandMark({ className }: { className?: string }) {
@@ -212,8 +213,27 @@ export function LoadingLabel({ children }: { children: ReactNode }) {
 }
 
 /** The single full-page loading treatment used throughout the conversation. */
-export function ConversationLoading({ label }: { label: string }) {
+export function ConversationLoading({
+  label,
+  showQuestionMessages = false,
+  messageSeed = 0,
+}: {
+  label: string;
+  showQuestionMessages?: boolean;
+  messageSeed?: number;
+}) {
   const t = useText();
+  const [messageStep, setMessageStep] = useState(0);
+
+  useEffect(() => {
+    setMessageStep(0);
+    if (!showQuestionMessages) return;
+    const timer = window.setInterval(() => setMessageStep((step) => step + 1), 6500);
+    return () => window.clearInterval(timer);
+  }, [messageSeed, showQuestionMessages]);
+
+  const message = showQuestionMessages ? questionLoadingMessage(messageSeed, messageStep) : null;
+
   return (
     <section
       aria-busy="true"
@@ -227,6 +247,21 @@ export function ConversationLoading({ label }: { label: string }) {
       <p role="status" className="text-xl font-semibold text-foreground">
         {label}
       </p>
+      {message ? (
+        <div
+          key={`${messageSeed}-${messageStep}`}
+          className="loading-companion-message min-h-28 w-full max-w-xl rounded-3xl border border-border bg-card px-6 py-5 shadow-sm"
+        >
+          <p className="text-sm font-semibold uppercase tracking-wide text-primary">
+            {message.kind === "fact"
+              ? t("您知道吗？", "Did you know?")
+              : t("慢慢来", "Take your time")}
+          </p>
+          <p className="mt-2 text-lg leading-relaxed text-foreground">
+            {t(message.zh, message.en)}
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }

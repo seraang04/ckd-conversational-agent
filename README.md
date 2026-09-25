@@ -41,6 +41,10 @@ Local development blocks a remote Supabase URL by default. Set `VITE_ALLOW_REMOT
 
 The app generates each displayed question's speech when it is opened or replayed. `/api/speak` sends the English or Mandarin question text to `gpt-4o-mini-tts`; no MP3s are stored in the repository. A generated follow-up question may refer to something the patient said earlier, so its text may include patient information. Review this data flow and both languages' live voices before clinical use. If the speech service or browser autoplay is unavailable, the patient can use **Hear question**; the app also tries the device voice.
 
+### Patient-facing CKD facts
+
+While Clara prepares the next question, the app alternates brief CKD facts with short supportive statements. The facts are limited to stable kidney functions and early CKD awareness described by [NIDDK](https://www.niddk.nih.gov/health-information/kidney-disease/chronic-kidney-disease-ckd/what-is-chronic-kidney-disease) and the [National Kidney Foundation](https://www.kidney.org/kidney-topics/chronic-kidney-disease-ckd). Review the English and Simplified Chinese wording with the clinical team before deployment.
+
 ### Working with the Lovable project
 
 The connected [Lovable project](https://lovable.dev/projects/80a7908c-95f0-4200-bb74-f27375075d74) already has Cloud database enabled and the `ckd_sessions`, `ckd_entries`, and `ckd_summaries` tables. Do not rerun the creation SQL against that database.
