@@ -13,7 +13,7 @@ export type ScriptQuestion = {
   requiredForCompletion?: boolean;
 };
 
-const GENERAL_PATIENT_QUESTIONS: ScriptQuestion[] = [
+const VALUES_QUESTIONS: ScriptQuestion[] = [
   {
     id: "values-1",
     answerKind: "ranking",
@@ -34,6 +34,9 @@ const GENERAL_PATIENT_QUESTIONS: ScriptQuestion[] = [
     zh: "您希望以后还能继续做什么？",
     en: "What do you hope to keep doing?",
   },
+];
+
+const WORRIES_QUESTIONS: ScriptQuestion[] = [
   {
     id: "worries-1",
     answerKind: "multiple",
@@ -50,6 +53,9 @@ const GENERAL_PATIENT_QUESTIONS: ScriptQuestion[] = [
     zh: "关于治疗，您最担心什么？",
     en: "What worries you most about treatment?",
   },
+];
+
+const LIFE_QUESTIONS: ScriptQuestion[] = [
   {
     id: "life-2",
     section: "life",
@@ -170,7 +176,7 @@ const TREATMENT_QUESTIONS: ScriptQuestion[] = [
   {
     id: "treatment-independence",
     section: "treatment",
-    answerKind: "multiple",
+    answerKind: "single",
     requiredForCompletion: true,
     zh: "在日常护理中，您希望自己参与到什么程度？",
     en: "How involved would you like to be in managing your day-to-day care?",
@@ -278,8 +284,15 @@ const CAREGIVER_QUESTIONS: ScriptQuestion[] = [
 ];
 
 export const SCRIPT: ScriptQuestion[] = [
-  ...GENERAL_PATIENT_QUESTIONS,
-  ...TREATMENT_QUESTIONS,
+  ...VALUES_QUESTIONS,
+  ...WORRIES_QUESTIONS,
+  TREATMENT_QUESTIONS[0]!, // treatment-mobility
+  TREATMENT_QUESTIONS[1]!, // treatment-travel
+  LIFE_QUESTIONS[0]!,      // life-2: appointment difficulty (natural follow-up to travel)
+  TREATMENT_QUESTIONS[2]!, // treatment-location
+  LIFE_QUESTIONS[1]!,      // life-3: who can help at home (natural follow-up to location)
+  TREATMENT_QUESTIONS[3]!, // treatment-independence
+  TREATMENT_QUESTIONS[4]!, // treatment-priorities
   ...SENSITIVE_QUESTIONS,
   ...CAREGIVER_QUESTIONS,
 ];
