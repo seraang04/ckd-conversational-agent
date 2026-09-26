@@ -11,6 +11,7 @@ export type ScriptQuestion = {
   choices?: AnswerChoice[];
   answerKind?: AnswerKind;
   requiredForCompletion?: boolean;
+  followsTopic?: string;
 };
 
 const VALUES_QUESTIONS: ScriptQuestion[] = [
@@ -59,12 +60,14 @@ const LIFE_QUESTIONS: ScriptQuestion[] = [
   {
     id: "life-2",
     section: "life",
+    followsTopic: "treatment-travel",
     zh: "去看诊时，什么事情会让您觉得不方便？",
     en: "What makes it difficult to get to appointments?",
   },
   {
     id: "life-3",
     section: "life",
+    followsTopic: "treatment-location",
     zh: "在家里，谁可以帮助您？",
     en: "Who can help you at home?",
   },

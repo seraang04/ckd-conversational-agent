@@ -16,7 +16,9 @@ export function conversationContext(scope: ConversationScope, entries: Conversat
   const history = entries.filter((e) => topics.some((q) => q.id === e.topic));
   const available = topics.filter((q) => {
     const turns = history.filter((e) => e.topic === q.id);
+    const parentAnswered = !q.followsTopic || history.some((e) => e.topic === q.followsTopic);
     return (
+      parentAnswered &&
       (!q.requiredForCompletion || turns.length === 0) &&
       turns.length < 2 &&
       !turns.some((e) => ["skipped", "deferred", "private"].includes(e.visibility))
