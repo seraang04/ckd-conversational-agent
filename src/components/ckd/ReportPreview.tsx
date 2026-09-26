@@ -43,6 +43,8 @@ export function usePdfPreview() {
   const [state, setState] = useState<PreviewState>({ status: "closed" });
   const runRef = useRef(0);
   const lastRef = useRef<(() => Promise<Sheet>) | null>(null);
+  // Cached blob from a prefetch — consumed on the next open() call.
+  const cachedBlobRef = useRef<Promise<Blob> | null>(null);
 
   const url = state.status === "ready" ? state.url : null;
   useEffect(() => {
@@ -55,17 +57,31 @@ export function usePdfPreview() {
     lastRef.current = makeSheet;
     setState({ status: "loading" });
     try {
-      const [{ sheetPdfBlob }] = await Promise.all([
-        import("@/lib/summary-pdf"),
-        getPdfjs(),
-      ]);
-      const blob = await sheetPdfBlob(await makeSheet());
+      const blobPromise = cachedBlobRef.current ?? (async () => {
+        const { sheetPdfBlob } = await import("@/lib/summary-pdf");
+        return sheetPdfBlob(await makeSheet());
+      })();
+      cachedBlobRef.current = null;
+      const blob = await blobPromise;
       if (runRef.current !== run) return;
       setState({ status: "ready", blob, url: URL.createObjectURL(blob) });
     } catch (error) {
       console.error("Could not prepare PDF", error);
       if (runRef.current === run) setState({ status: "error" });
     }
+  }, []);
+
+  const prefetchBlob = useCallback((makeSheet: () => Promise<Sheet>) => {
+    lastRef.current = makeSheet;
+    cachedBlobRef.current = (async () => {
+      const [{ sheetPdfBlob }] = await Promise.all([
+        import("@/lib/summary-pdf"),
+        getPdfjs(),
+      ]);
+      return sheetPdfBlob(await makeSheet());
+    })();
+    // Discard on error so a stale rejected promise is never consumed.
+    cachedBlobRef.current.catch(() => { cachedBlobRef.current = null; });
   }, []);
 
   const retry = useCallback(() => {
@@ -77,7 +93,7 @@ export function usePdfPreview() {
     setState({ status: "closed" });
   }, []);
 
-  return { state, open, retry, close, busy: state.status === "loading" };
+  return { state, open, prefetchBlob, retry, close, busy: state.status === "loading" };
 }
 
 function PdfCanvas({ blob }: { blob: Blob }) {
@@ -242,12 +258,7 @@ export function GenerateReportButton({
   const t = useText(language);
   const preview = usePdfPreview();
 
-  useEffect(() => {
-    getPdfjs();
-    import("@/lib/summary-pdf").then(({ prefetchPdfAssets }) => prefetchPdfAssets());
-  }, []);
-
-  const makeSheet = async () => {
+  const makeSheet = useCallback(async () => {
     const { buildCaregiverSheet, buildPatientSheet, formatPreparedOn, prioritiesFromEntries } =
       await import("@/lib/decision-sheets");
     const preparedOn = formatPreparedOn(new Date(), language);
@@ -259,7 +270,16 @@ export function GenerateReportButton({
           preparedOn,
         )
       : buildCaregiverSheet(language, entries, preparedOn);
-  };
+  }, [kind, entries, language]);
+
+  // Start generating as soon as the button is enabled so the blob is ready by
+  // the time the user clicks. Re-run whenever entries change.
+  useEffect(() => {
+    if (disabled) return;
+    getPdfjs();
+    import("@/lib/summary-pdf").then(({ prefetchPdfAssets }) => prefetchPdfAssets());
+    preview.prefetchBlob(makeSheet);
+  }, [disabled, makeSheet]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
