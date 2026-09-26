@@ -5,18 +5,62 @@ import ts from "typescript";
 
 const options = { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 };
 
-const scriptSource = await readFile(new URL("../src/lib/ckd-script.ts", import.meta.url), "utf8");
-const scriptJs = ts.transpileModule(scriptSource, { compilerOptions: options }).outputText;
-const scriptUrl = `data:text/javascript;base64,${Buffer.from(scriptJs).toString("base64")}`;
+const toDataUrl = (src) =>
+  `data:text/javascript;base64,${Buffer.from(src).toString("base64")}`;
+const transpile = (src) => ts.transpileModule(src, { compilerOptions: options }).outputText;
 
-const sheetsSource = await readFile(
-  new URL("../src/lib/decision-sheets.ts", import.meta.url),
-  "utf8",
+const scriptSource = await readFile(new URL("../src/lib/ckd-script.ts", import.meta.url), "utf8");
+const scriptUrl = toDataUrl(transpile(scriptSource));
+
+const kbDataSource = await readFile(new URL("../src/lib/treatment-options.data.ts", import.meta.url), "utf8");
+const kbDataUrl = toDataUrl(transpile(kbDataSource));
+
+const treatmentOptionsSource = await readFile(new URL("../src/lib/treatment-options.ts", import.meta.url), "utf8");
+const treatmentOptionsUrl = toDataUrl(
+  transpile(treatmentOptionsSource.replaceAll('"./treatment-options.data.ts"', JSON.stringify(kbDataUrl))),
 );
-const sheetsJs = ts.transpileModule(
-  sheetsSource.replaceAll('"./ckd-script.ts"', JSON.stringify(scriptUrl)),
-  { compilerOptions: options },
-).outputText;
+
+// decision-sheets and patient-profile have a circular dependency (sheets imports profile,
+// profile imports parseGuidedAnswer from sheets). To break the cycle for the data-URL
+// module loader, we pre-compute both URLs and embed them cross-referentially before
+// importing either. The ES module system handles the actual circular reference at load time.
+const sheetsSource = await readFile(new URL("../src/lib/decision-sheets.ts", import.meta.url), "utf8");
+const profileSource = await readFile(new URL("../src/lib/patient-profile.ts", import.meta.url), "utf8");
+
+// We need to know each other's URL before building either. We use a two-pass approach:
+// first build a placeholder sheetsUrl that resolves the script import, then build
+// profileUrl using it, then build the final sheetsUrl using profileUrl.
+// This works because patient-profile only calls parseGuidedAnswer (from decision-sheets)
+// at runtime, not at module load time.
+const sheetsUrlForProfile = toDataUrl(
+  transpile(
+    sheetsSource
+      .replaceAll('"./ckd-script.ts"', JSON.stringify(scriptUrl))
+      // patient-profile import will be resolved lazily at runtime — pass a stub that
+      // re-exports only what profile.ts needs from sheets (parseGuidedAnswer).
+      // The full sheetsUrl import in the final sheets module replaces this at runtime.
+      .replaceAll('"./patient-profile.ts"', JSON.stringify(
+        toDataUrl("export function buildPatientProfile(){ return { priorities:[], handoffs:[], all:[] }; }"),
+      ))
+      .replaceAll('"./treatment-options.ts"', JSON.stringify(treatmentOptionsUrl)),
+  ),
+);
+
+const profileUrl = toDataUrl(
+  transpile(
+    profileSource
+      .replaceAll('"./ckd-script.ts"', JSON.stringify(scriptUrl))
+      .replaceAll('"./decision-sheets.ts"', JSON.stringify(sheetsUrlForProfile))
+      .replaceAll('"./treatment-options.ts"', JSON.stringify(treatmentOptionsUrl)),
+  ),
+);
+
+const sheetsJs = transpile(
+  sheetsSource
+    .replaceAll('"./ckd-script.ts"', JSON.stringify(scriptUrl))
+    .replaceAll('"./patient-profile.ts"', JSON.stringify(profileUrl))
+    .replaceAll('"./treatment-options.ts"', JSON.stringify(treatmentOptionsUrl)),
+);
 const {
   parseGuidedAnswer,
   starsForRank,
@@ -25,7 +69,7 @@ const {
   prioritiesFromEntries,
   HELP_ROWS,
   LIFE_FIELDS,
-} = await import(`data:text/javascript;base64,${Buffer.from(sheetsJs).toString("base64")}`);
+} = await import(toDataUrl(sheetsJs));
 
 const { SCRIPT } = await import(scriptUrl);
 const findQuestion = (id) => SCRIPT.find((q) => q.id === id);

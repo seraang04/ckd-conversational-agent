@@ -71,6 +71,17 @@ function metrics(scale: number) {
     noteSize: s(9),
     footerPadding: s(10),
     footerTextSize: s(9.5),
+    // treatment-comparison block
+    tcDimHeadingSize: s(10),
+    tcDimHeadingGap: s(5),
+    tcOptionLabelSize: s(9),
+    tcBarHeight: s(7),
+    tcBarGap: s(3),
+    tcCountSize: s(8),
+    tcStatementSize: s(8),
+    tcStatementLineHeight: s(11),
+    tcOptionGap: s(6),
+    tcDimGap: s(8),
   };
 }
 
@@ -489,6 +500,129 @@ function renderSheet(pdf: PDFDocument, sheet: Sheet, fonts: Fonts, m: Metrics) {
     }
   };
 
+  const PRO_COLOR = rgb(0.18, 0.52, 0.44);
+  const CON_COLOR = rgb(0.78, 0.79, 0.81);
+
+  /** Measure how tall one option column would be, given a colWidth. */
+  const measureOptionHeight = (
+    opt: { prosCount: number; consCount: number; statements: { tag: string; text: string }[] },
+    barWidth: number,
+  ): number => {
+    let h = m.tcOptionLabelSize * 1.4;
+    h += m.tcBarHeight + m.tcBarGap;
+    h += m.tcCountSize * 1.3;
+    for (const stmt of opt.statements) {
+      const lines = wrapText(fonts, stmt.text, m.tcStatementSize, false, barWidth - 10);
+      h += lines.length * m.tcStatementLineHeight;
+    }
+    return h;
+  };
+
+  /** Draw one option at a given (x, startY), moving downward. Returns the final y. */
+  const drawOption = (
+    opt: { optionLabel: string; prosCount: number; consCount: number; statements: { tag: "helps" | "harder" | "practical"; text: string }[] },
+    x: number,
+    startY: number,
+    barWidth: number,
+  ): number => {
+    let localY = startY;
+    const total = opt.prosCount + opt.consCount;
+
+    localY -= m.tcOptionLabelSize * 1.4;
+    drawRun(page, x, localY, opt.optionLabel, m.tcOptionLabelSize, true, DARK, fonts);
+
+    localY -= m.tcBarHeight + m.tcBarGap;
+    page.drawRectangle({ x, y: localY, width: barWidth, height: m.tcBarHeight, color: CON_COLOR });
+    if (total > 0 && opt.prosCount > 0) {
+      const proWidth = Math.round((opt.prosCount / total) * barWidth);
+      page.drawRectangle({ x, y: localY, width: proWidth, height: m.tcBarHeight, color: PRO_COLOR });
+    }
+
+    localY -= m.tcCountSize * 1.3;
+    const countLabel =
+      opt.prosCount > 0 && opt.consCount > 0
+        ? `${opt.prosCount} pros · ${opt.consCount} cons`
+        : opt.prosCount > 0
+          ? `${opt.prosCount} pros`
+          : opt.consCount > 0
+            ? `${opt.consCount} cons`
+            : "—";
+    drawRun(page, x, localY, countLabel, m.tcCountSize, false, GREY, fonts);
+
+    const helps = opt.statements.filter((s) => s.tag === "helps");
+    const practical = opt.statements.filter((s) => s.tag === "practical");
+    const harder = opt.statements.filter((s) => s.tag === "harder");
+    for (const stmt of [...helps, ...practical, ...harder]) {
+      const prefix = stmt.tag === "harder" ? "– " : "+ ";
+      const prefixColor = stmt.tag === "harder" ? GREY : PRO_COLOR;
+      const textColor = stmt.tag === "harder" ? GREY : DARK;
+      const lines = wrapText(fonts, stmt.text, m.tcStatementSize, false, barWidth - 10);
+      for (let li = 0; li < lines.length; li++) {
+        localY -= m.tcStatementLineHeight;
+        if (li === 0) {
+          drawRun(page, x, localY, prefix, m.tcStatementSize, false, prefixColor, fonts);
+          drawRun(page, x + 8, localY, lines[li]!, m.tcStatementSize, false, textColor, fonts);
+        } else {
+          drawRun(page, x + 8, localY, lines[li]!, m.tcStatementSize, false, textColor, fonts);
+        }
+      }
+    }
+    return localY;
+  };
+
+  const drawTreatmentComparison = (
+    priorities: Extract<import("./decision-sheets.ts").SheetBlock, { type: "treatment-comparison" }>["priorities"],
+  ) => {
+    const colWidth = CONTENT_WIDTH / 2;
+    const barWidth = colWidth - 12;
+
+    for (let di = 0; di < priorities.length; di++) {
+      const dim = priorities[di]!;
+      if (di > 0) advance(m.tcDimGap);
+
+      // Dimension sub-heading
+      advance(m.tcDimHeadingSize * 1.3);
+      drawRun(page, MARGIN, y, dim.dimensionLabel, m.tcDimHeadingSize, true, theme.accent, fonts);
+      advance(m.tcDimHeadingGap);
+      page.drawLine({
+        start: { x: MARGIN, y },
+        end: { x: MARGIN + CONTENT_WIDTH, y },
+        thickness: 0.5,
+        color: LINE_GREY,
+      });
+
+      // Options in 2-column × 2-row layout
+      for (let row = 0; row < 2; row++) {
+        const leftOpt = dim.options[row * 2];
+        const rightOpt = dim.options[row * 2 + 1];
+
+        const leftHeight = leftOpt ? measureOptionHeight(leftOpt, barWidth) : 0;
+        const rightHeight = rightOpt ? measureOptionHeight(rightOpt, barWidth) : 0;
+        const rowHeight = Math.max(leftHeight, rightHeight);
+
+        ensureSpace(rowHeight + m.tcOptionGap);
+        const rowStartY = y;
+
+        if (leftOpt) {
+          drawOption(leftOpt, MARGIN, rowStartY, barWidth);
+        }
+        if (rightOpt) {
+          drawOption(rightOpt, MARGIN + colWidth, rowStartY, barWidth);
+        }
+
+        y = rowStartY - rowHeight;
+
+        page.drawLine({
+          start: { x: MARGIN, y },
+          end: { x: MARGIN + CONTENT_WIDTH, y },
+          thickness: 0.5,
+          color: LINE_GREY,
+        });
+        y -= m.tcOptionGap;
+      }
+    }
+  };
+
   const drawBlock = (block: SheetBlock) => {
     advance(m.blockGap);
     switch (block.type) {
@@ -515,6 +649,9 @@ function renderSheet(pdf: PDFDocument, sheet: Sheet, fonts: Fonts, m: Metrics) {
         break;
       case "note":
         drawNote(block.text);
+        break;
+      case "treatment-comparison":
+        drawTreatmentComparison(block.priorities);
         break;
     }
   };

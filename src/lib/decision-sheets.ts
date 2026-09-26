@@ -1,5 +1,7 @@
 import { OPTIONS_QUESTION_TOPIC, SCRIPT } from "./ckd-script.ts";
 import type { ScriptQuestion } from "./ckd-script.ts";
+import { buildPatientProfile } from "./patient-profile.ts";
+import { OPTION_ORDER, dimensionLabel, optionLabel, statementsFor } from "./treatment-options.ts";
 
 export type Language = "en" | "zh";
 
@@ -38,7 +40,21 @@ export type SheetBlock =
   | { type: "checkboxes"; items: { label: string; checked: boolean }[] }
   | { type: "grid"; columns: string[]; rows: string[]; selected: (number | null)[] }
   | { type: "lines"; count: number }
-  | { type: "note"; text: string };
+  | { type: "note"; text: string }
+  | {
+      type: "treatment-comparison";
+      priorities: {
+        dimension: string;
+        dimensionLabel: string;
+        options: {
+          optionId: string;
+          optionLabel: string;
+          prosCount: number;
+          consCount: number;
+          statements: { tag: "helps" | "harder" | "practical"; text: string }[];
+        }[];
+      }[];
+    };
 
 /** One row of the caregiver's "What I can help with" grid. */
 export const HELP_ROWS = [
@@ -181,6 +197,34 @@ export function formatPreparedOn(date: Date, language: Language): string {
   });
 }
 
+function buildTreatmentComparison(
+  entries: readonly SheetEntry[],
+  allowGated: boolean,
+  language: Language,
+): Extract<SheetBlock, { type: "treatment-comparison" }> {
+  const profile = buildPatientProfile(entries);
+  const priorities = profile.priorities.map((dimension) => {
+    const options = OPTION_ORDER.map((optionId) => {
+      const statements = statementsFor(optionId, dimension, { allowGated });
+      const pros = statements.filter((s) => s.tag === "helps" || s.tag === "practical");
+      const cons = statements.filter((s) => s.tag === "harder");
+      return {
+        optionId,
+        optionLabel: optionLabel(optionId, language),
+        prosCount: pros.length,
+        consCount: cons.length,
+        statements: [],
+      };
+    });
+    return {
+      dimension,
+      dimensionLabel: dimensionLabel(dimension, language),
+      options,
+    };
+  });
+  return { type: "treatment-comparison", priorities };
+}
+
 export function buildPatientSheet(
   language: Language,
   entries: SheetEntry[],
@@ -321,6 +365,20 @@ export function buildPatientSheet(
     items: concernItems,
     blankLines: concernItems.length ? 0 : 2,
   });
+
+  blocks.push({
+    type: "section",
+    heading: tt("治疗方式如何满足您最在意的事", "How the options compare on what matters to you"),
+  });
+  const comparison = buildTreatmentComparison(entries, false, language);
+  if (comparison.priorities.length) {
+    blocks.push(comparison);
+  } else {
+    blocks.push({
+      type: "note",
+      text: tt("对话中未涉及具体偏好。", "No specific preferences came up in the conversation."),
+    });
+  }
 
   blocks.push({
     type: "section",

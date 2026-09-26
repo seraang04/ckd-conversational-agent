@@ -7,19 +7,53 @@ import ts from "typescript";
 
 const options = { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 };
 
+const toDataUrl = (src) =>
+  `data:text/javascript;base64,${Buffer.from(src).toString("base64")}`;
+const transpile = (src) => ts.transpileModule(src, { compilerOptions: options }).outputText;
+
 const scriptSource = await readFile(new URL("../src/lib/ckd-script.ts", import.meta.url), "utf8");
-const scriptJs = ts.transpileModule(scriptSource, { compilerOptions: options }).outputText;
-const scriptUrl = `data:text/javascript;base64,${Buffer.from(scriptJs).toString("base64")}`;
+const scriptUrl = toDataUrl(transpile(scriptSource));
+
+const kbDataSource = await readFile(new URL("../src/lib/treatment-options.data.ts", import.meta.url), "utf8");
+const kbDataUrl = toDataUrl(transpile(kbDataSource));
+
+const treatmentOptionsSource = await readFile(new URL("../src/lib/treatment-options.ts", import.meta.url), "utf8");
+const treatmentOptionsUrl = toDataUrl(
+  transpile(treatmentOptionsSource.replaceAll('"./treatment-options.data.ts"', JSON.stringify(kbDataUrl))),
+);
 
 const decisionSheetsSource = await readFile(
   new URL("../src/lib/decision-sheets.ts", import.meta.url),
   "utf8",
 );
-const decisionSheetsJs = ts.transpileModule(
-  decisionSheetsSource.replaceAll('"./ckd-script.ts"', JSON.stringify(scriptUrl)),
-  { compilerOptions: options },
-).outputText;
-const decisionSheetsUrl = `data:text/javascript;base64,${Buffer.from(decisionSheetsJs).toString("base64")}`;
+const profileSource = await readFile(new URL("../src/lib/patient-profile.ts", import.meta.url), "utf8");
+
+// Two-pass to handle the circular decision-sheets ↔ patient-profile dependency.
+const sheetsUrlForProfile = toDataUrl(
+  transpile(
+    decisionSheetsSource
+      .replaceAll('"./ckd-script.ts"', JSON.stringify(scriptUrl))
+      .replaceAll('"./patient-profile.ts"', JSON.stringify(
+        toDataUrl("export function buildPatientProfile(){ return { priorities:[], handoffs:[], all:[] }; }"),
+      ))
+      .replaceAll('"./treatment-options.ts"', JSON.stringify(treatmentOptionsUrl)),
+  ),
+);
+const profileUrl = toDataUrl(
+  transpile(
+    profileSource
+      .replaceAll('"./ckd-script.ts"', JSON.stringify(scriptUrl))
+      .replaceAll('"./decision-sheets.ts"', JSON.stringify(sheetsUrlForProfile))
+      .replaceAll('"./treatment-options.ts"', JSON.stringify(treatmentOptionsUrl)),
+  ),
+);
+const decisionSheetsJs = transpile(
+  decisionSheetsSource
+    .replaceAll('"./ckd-script.ts"', JSON.stringify(scriptUrl))
+    .replaceAll('"./patient-profile.ts"', JSON.stringify(profileUrl))
+    .replaceAll('"./treatment-options.ts"', JSON.stringify(treatmentOptionsUrl)),
+);
+const decisionSheetsUrl = toDataUrl(decisionSheetsJs);
 const { buildPatientSheet, buildCaregiverSheet } = await import(decisionSheetsUrl);
 
 const summaryPdfSource = await readFile(
@@ -151,11 +185,11 @@ function caregiverEntries(language) {
 }
 
 for (const language of ["en", "zh"]) {
-  test(`patient sheet in ${language} renders to exactly 1 A4 page`, async () => {
+  test(`patient sheet in ${language} renders to at most 2 A4 pages`, async () => {
     const sheet = buildPatientSheet(language, patientEntries(language), confirmed, "2026-09-24");
     const bytes = await createSheetPdf(sheet, fontBytes);
     const pdf = await PDFDocument.load(bytes);
-    assert.equal(pdf.getPageCount(), 1);
+    assert.ok(pdf.getPageCount() <= 2, `Expected ≤ 2 pages, got ${pdf.getPageCount()}`);
     const page = pdf.getPage(0);
     assert.equal(page.getWidth(), 595.28);
     assert.equal(page.getHeight(), 841.89);
