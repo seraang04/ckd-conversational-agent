@@ -37,6 +37,21 @@ type Props = {
 
 export type OptionsShownResult = { source: "ai" | "template"; priorities: DimensionId[] };
 
+function flexibilityLabel(profile: ReturnType<typeof buildPatientProfile>, language: Language): string {
+  const item = profile.all.find((i) => i.dimension === "flexibility");
+  const details = item?.details ?? [];
+  const onlyFlexible = details.includes("prefers_flexible") && !details.includes("prefers_routine");
+  const onlyRoutine = details.includes("prefers_routine") && !details.includes("prefers_flexible");
+  if (language === "zh") {
+    if (onlyFlexible) return "灵活安排每天的时间";
+    if (onlyRoutine) return "固定、容易预先计划的日程";
+    return "时间灵活还是安排固定";
+  }
+  if (onlyFlexible) return "Keeping your schedule flexible";
+  if (onlyRoutine) return "Having a predictable routine";
+  return "Flexible days vs a fixed routine";
+}
+
 export function OptionsStep({ sessionId, language, entries, allowGated, onDone }: Props) {
   const t = useText(language);
   const profile = useMemo(() => buildPatientProfile(entries), [entries]);
@@ -96,7 +111,9 @@ export function OptionsStep({ sessionId, language, entries, allowGated, onDone }
                 >
                   {isSelected ? <Check className="h-5 w-5" /> : null}
                 </span>
-                {dimensionLabel(dimension, language)}
+                {dimension === "flexibility"
+                  ? flexibilityLabel(profile, language)
+                  : dimensionLabel(dimension, language)}
               </button>
             );
           })}

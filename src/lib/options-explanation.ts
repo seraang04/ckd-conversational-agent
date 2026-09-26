@@ -133,7 +133,7 @@ export function buildOptionsPrompt(request: OptionsRequest): string {
         })),
       })),
       output:
-        "For each dimension, in the order given: bridgeZh/bridgeEn is one short sentence linking the patient's own choices to this dimension. For each option, in the order given, choose statementIds from that option's statements only (at least one). linkZh/linkEn is optional: at most one short sentence, or an empty string.",
+        "For each dimension, in the order given: bridgeZh/bridgeEn is one short sentence linking the patient's own choices to this dimension. If a patient chose two options that are opposites on the same dimension (e.g. 'flexible schedule' and 'predictable routine'), do NOT list both as if equally held — instead, note the trade-off or prioritise whichever was ranked higher (lower rank number = more important). For each option, in the order given, choose statementIds from that option's statements only (at least one). linkZh/linkEn is optional: at most one short sentence, or an empty string.",
     },
     null,
     2,
