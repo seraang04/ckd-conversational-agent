@@ -136,7 +136,7 @@ export function ReportPreviewDialog({
             className={cn(quietActionClass, "min-h-0 justify-center text-sm sm:text-base")}
             onClick={() => {
               if (state.status !== "ready") return;
-              window.open(state.url, "_blank", "noopener");
+              window.open(state.url, "_blank");
             }}
           >
             <ExternalLink className="h-4 w-4" aria-hidden />
