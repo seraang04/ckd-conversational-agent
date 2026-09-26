@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { GenerateReportButton } from "./ReportPreview";
 import { VoiceAnswer } from "./VoiceAnswer";
 import { BigButton, Card, ConversationLoading, Notice } from "./ui";
 import { nextConversationTurn } from "@/lib/ckd.functions";
@@ -150,6 +151,9 @@ export function ConversationTurns({
         onSkip={() => void submit({ answer: "", freeText: null, inputMode: "typed" }, "skipped")}
         onDefer={() => void submit({ answer: "", freeText: null, inputMode: "typed" }, "deferred")}
         busy={saving}
+        headerAction={
+          <GenerateReportButton kind={speaker} entries={entries} language={language} disabled={saving} />
+        }
       />
     </div>
   );

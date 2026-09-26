@@ -9,8 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import {
-  Download,
   EyeOff,
+  FileText,
   Heart,
   House,
   Lock,
@@ -44,6 +44,11 @@ import { SafetySupport } from "@/components/ckd/SafetySupport";
 import { OptionsStep } from "@/components/ckd/OptionsStep";
 import { hasExplicitSafetySignal } from "@/lib/safety";
 import { ConversationTurns } from "@/components/ckd/ConversationTurns";
+import {
+  GenerateReportButton,
+  ReportPreviewDialog,
+  usePdfPreview,
+} from "@/components/ckd/ReportPreview";
 import {
   addConversationEntry,
   fetchSessionBundle,
@@ -129,7 +134,6 @@ function SessionFlow() {
   });
 
   const [busy, setBusy] = useState(false);
-  const [downloading, setDownloading] = useState(false);
   const [safety, setSafety] = useState<"risk" | "unavailable" | null>(null);
   const [safetySaved, setSafetySaved] = useState(false);
   const safetyBlocked = useRef(false);
@@ -475,6 +479,14 @@ function SessionFlow() {
               onDefer={() =>
                 void handleNoAnswer(SENSITIVE_QUESTION, "patient", "deferred", "options")
               }
+              headerAction={
+                <GenerateReportButton
+                  kind="patient"
+                  entries={entries}
+                  language={language}
+                  disabled={busy}
+                />
+              }
             />
           </div>
         ) : null}
@@ -608,67 +620,13 @@ function SessionFlow() {
                   )}
             </p>
             {summary?.confirmed && hasSummaryContent ? (
-              <BigButton
-                disabled={downloading}
-                onClick={async () => {
-                  setDownloading(true);
-                  try {
-                    const { buildPatientSheet } = await import("@/lib/decision-sheets");
-                    const { downloadSheetPdf } = await import("@/lib/summary-pdf");
-                    const confirmed = {
-                      patientPriorities: summary.patient_priorities.map((item) =>
-                        translatedText(item, language),
-                      ),
-                      sharedConcerns: summary.shared_concerns.map((item) =>
-                        translatedText(item, language),
-                      ),
-                    };
-                    const preparedOn = new Date(session.completed_at ?? Date.now()).toLocaleDateString(
-                      language === "en" ? "en-SG" : "zh-CN",
-                      { day: "numeric", month: language === "en" ? "short" : "long", year: "numeric" },
-                    );
-                    // A best-effort read of what the patient said; if it fails or is
-                    // unconfigured, these rows are just left blank, same as before.
-                    const lifeDetails = await inferLifeDetails({
-                      data: {
-                        entries: entries
-                          .filter(
-                            (e) =>
-                              e.speaker === "patient" &&
-                              e.visibility === "shared" &&
-                              !isOptionsShownEntry(e),
-                          )
-                          .map((e) => ({
-                            speaker: e.speaker,
-                            question: e.question,
-                            answer: e.answer,
-                            visibility: e.visibility,
-                          })),
-                        language,
-                      },
-                    }).catch(() => ({}));
-                    await downloadSheetPdf(
-                      buildPatientSheet(language, entries, confirmed, preparedOn, lifeDetails),
-                      `my-treatment-priorities-${language}.pdf`,
-                    );
-                  } catch {
-                    toast.error(
-                      t(
-                        "无法下载摘要，请重试。",
-                        "Could not download the summary. Please try again.",
-                      ),
-                    );
-                  } finally {
-                    setDownloading(false);
-                  }
-                }}
-                className="flex items-center justify-center gap-2"
-              >
-                <Download className="h-6 w-6 shrink-0" aria-hidden />
-                {downloading
-                  ? t("正在生成 PDF…", "Preparing PDF…")
-                  : t("下载我的治疗优先事项 (PDF)", "Download my treatment priorities (PDF)")}
-              </BigButton>
+              <PatientReport
+                language={language}
+                entries={entries}
+                summary={summary}
+                completedAt={session.completed_at}
+                inferLifeDetails={inferLifeDetails}
+              />
             ) : null}
             <Link to="/" className={cn(quietActionClass, "justify-center")}>
               {t("开始新对话", "Start another conversation")}
@@ -905,6 +863,76 @@ function EmotionalCheckin({
   );
 }
 
+function PatientReport({
+  language,
+  entries,
+  summary,
+  completedAt,
+  inferLifeDetails,
+}: {
+  language: Language;
+  entries: EntryRow[];
+  summary: SummaryRow;
+  completedAt: string | null;
+  inferLifeDetails: ReturnType<typeof useServerFn<typeof inferPatientLifeDetails>>;
+}) {
+  const t = useText(language);
+  const preview = usePdfPreview();
+
+  return (
+    <>
+      <BigButton
+        disabled={preview.busy}
+        onClick={() =>
+          void preview.open(async () => {
+            const { buildPatientSheet, formatPreparedOn } = await import("@/lib/decision-sheets");
+            const confirmed = {
+              patientPriorities: summary.patient_priorities.map((item) =>
+                translatedText(item, language),
+              ),
+              sharedConcerns: summary.shared_concerns.map((item) => translatedText(item, language)),
+            };
+            // A best-effort read of what the patient said; if it fails or is
+            // unconfigured, these rows are just left blank, same as before.
+            const lifeDetails = await inferLifeDetails({
+              data: {
+                entries: entries
+                  .filter((e) => e.speaker === "patient" && e.visibility === "shared")
+                  .map((e) => ({
+                    speaker: e.speaker,
+                    question: e.question,
+                    answer: e.answer,
+                    visibility: e.visibility,
+                  })),
+                language,
+              },
+            }).catch(() => ({}));
+            return buildPatientSheet(
+              language,
+              entries,
+              confirmed,
+              formatPreparedOn(new Date(completedAt ?? Date.now()), language),
+              lifeDetails,
+            );
+          })
+        }
+        className="flex items-center justify-center gap-2"
+      >
+        <FileText className="h-6 w-6 shrink-0" aria-hidden />
+        {preview.busy
+          ? t("正在生成 PDF…", "Preparing PDF…")
+          : t("查看并下载我的治疗优先事项 (PDF)", "Review and download my treatment priorities (PDF)")}
+      </BigButton>
+      <ReportPreviewDialog
+        preview={preview}
+        language={language}
+        title={t("我的治疗优先事项", "My treatment priorities")}
+        filename={`my-treatment-priorities-${language}.pdf`}
+      />
+    </>
+  );
+}
+
 function CaregiverDone({
   language,
   entries,
@@ -915,9 +943,9 @@ function CaregiverDone({
   onContinue: () => void;
 }) {
   const t = useText(language);
-  const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
   const inferHelp = useServerFn(inferCaregiverHelp);
+  const preview = usePdfPreview();
 
   return (
     <Card className="mx-auto max-w-3xl space-y-4 text-left">
@@ -940,16 +968,10 @@ function CaregiverDone({
         )}
       </p>
       <BigButton
-        disabled={downloading}
-        onClick={async () => {
-          setDownloading(true);
-          try {
-            const { buildCaregiverSheet } = await import("@/lib/decision-sheets");
-            const { downloadSheetPdf } = await import("@/lib/summary-pdf");
-            const preparedOn = new Date().toLocaleDateString(
-              language === "en" ? "en-SG" : "zh-CN",
-              { day: "numeric", month: language === "en" ? "short" : "long", year: "numeric" },
-            );
+        disabled={preview.busy}
+        onClick={() =>
+          void preview.open(async () => {
+            const { buildCaregiverSheet, formatPreparedOn } = await import("@/lib/decision-sheets");
             const howIHelp = entries.find(
               (e) => e.speaker === "caregiver" && e.topic === "caregiver-2" && e.visibility === "shared",
             );
@@ -958,28 +980,30 @@ function CaregiverDone({
             const helpCapacity = howIHelp
               ? await inferHelp({ data: { answer: howIHelp.answer } }).catch(() => ({}))
               : {};
-            await downloadSheetPdf(
-              buildCaregiverSheet(language, entries, preparedOn, helpCapacity),
-              `caregiver-notes-${language}.pdf`,
+            return buildCaregiverSheet(
+              language,
+              entries,
+              formatPreparedOn(new Date(), language),
+              helpCapacity,
             );
-            setDownloaded(true);
-          } catch {
-            toast.error(
-              t("无法下载记录，请重试。", "Could not download your notes. Please try again."),
-            );
-          } finally {
-            setDownloading(false);
-          }
-        }}
+          })
+        }
         className="flex items-center justify-center gap-2"
       >
-        <Download className="h-6 w-6 shrink-0" aria-hidden />
-        {downloading
+        <FileText className="h-6 w-6 shrink-0" aria-hidden />
+        {preview.busy
           ? t("正在生成 PDF…", "Preparing PDF…")
           : downloaded
-            ? t("再次下载我的记录 (PDF)", "Download my notes again (PDF)")
-            : t("下载我的记录 (PDF)", "Download my notes (PDF)")}
+            ? t("再次查看我的记录 (PDF)", "View my notes again (PDF)")
+            : t("查看并下载我的记录 (PDF)", "Review and download my notes (PDF)")}
       </BigButton>
+      <ReportPreviewDialog
+        preview={preview}
+        language={language}
+        title={t("我作为照顾者的记录", "My notes as a caregiver")}
+        filename={`caregiver-notes-${language}.pdf`}
+        onDownloaded={() => setDownloaded(true)}
+      />
       <p className="text-base leading-relaxed text-muted-foreground">
         {t(
           "您私下分享的内容不会印在记录上。",
