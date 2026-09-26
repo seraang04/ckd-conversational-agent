@@ -273,6 +273,10 @@ export const explainOptionsForProfile = createServerFn({ method: "POST" })
           .max(3),
         allowGated: z.boolean(),
         language: z.enum(["en", "zh"]),
+        patientContext: z
+          .array(z.object({ question: z.string().max(500), answer: z.string().max(2000) }))
+          .max(10)
+          .optional(),
       })
       .parse(input),
   )

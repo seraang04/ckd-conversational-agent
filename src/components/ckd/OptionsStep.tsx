@@ -52,9 +52,24 @@ function flexibilityLabel(profile: ReturnType<typeof buildPatientProfile>, langu
   return "Flexible days vs a fixed routine";
 }
 
+const FREE_TEXT_TOPICS = new Set(["values-3", "life-2", "life-3"]);
+
 export function OptionsStep({ sessionId, language, entries, allowGated, onDone }: Props) {
   const t = useText(language);
   const profile = useMemo(() => buildPatientProfile(entries), [entries]);
+  const patientContext = useMemo(
+    () =>
+      entries
+        .filter(
+          (e) =>
+            e.speaker === "patient" &&
+            e.visibility === "shared" &&
+            FREE_TEXT_TOPICS.has(e.topic) &&
+            e.answer.trim(),
+        )
+        .map((e) => ({ question: e.question, answer: e.answer })),
+    [entries],
+  );
   const explainable = profile.all.filter((i) => EXPLAINABLE_DIMENSIONS.includes(i.dimension));
   const candidates: DimensionId[] = explainable.length
     ? explainable.map((i) => i.dimension)
@@ -136,6 +151,7 @@ export function OptionsStep({ sessionId, language, entries, allowGated, onDone }
       evidence={(d) => profile.all.find((i) => i.dimension === d)?.evidence ?? []}
       handoffs={profile.handoffs}
       allowGated={allowGated}
+      patientContext={patientContext}
       onChangePriorities={() => setConfirmed(null)}
       onDone={onDone}
     />
@@ -149,6 +165,7 @@ function OptionCards({
   evidence,
   handoffs,
   allowGated,
+  patientContext,
   onChangePriorities,
   onDone,
 }: {
@@ -158,6 +175,7 @@ function OptionCards({
   evidence: (dimension: DimensionId) => { topic: string; label: string; rank?: number }[];
   handoffs: DimensionId[];
   allowGated: boolean;
+  patientContext: { question: string; answer: string }[];
   onChangePriorities: () => void;
   onDone: (shown: OptionsShownResult) => Promise<void> | void;
 }) {
@@ -166,13 +184,14 @@ function OptionCards({
   const [index, setIndex] = useState(0);
   const [finishing, setFinishing] = useState(false);
   const query = useQuery({
-    queryKey: ["options-explanation", sessionId, dimensions, allowGated],
+    queryKey: ["options-explanation", sessionId, dimensions, allowGated, patientContext],
     queryFn: () =>
       explain({
         data: {
           priorities: dimensions.map((dimension) => ({ dimension, evidence: evidence(dimension) })),
           allowGated,
           language,
+          ...(patientContext.length ? { patientContext } : {}),
         },
       }),
     staleTime: Infinity,
