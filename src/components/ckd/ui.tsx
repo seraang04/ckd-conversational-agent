@@ -4,14 +4,14 @@ import { LoaderCircle, type LucideIcon } from "lucide-react";
 import { type ReactNode } from "react";
 
 import { ClaraMascot } from "@/components/ckd/ClaraMascot";
-import logo from "@/assets/logo.png";
+import claraMascot from "@/assets/clara-mascot-display.png";
 import { questionLoadingMessage } from "@/lib/loading-messages";
 import { cn } from "@/lib/utils";
 
 export function BrandMark({ className }: { className?: string }) {
   return (
     <span className={cn("inline-flex h-12 w-12 shrink-0 overflow-hidden", className)}>
-      <img src={logo} alt="" className="h-full w-full scale-[1.65] object-contain" />
+      <img src={claraMascot} alt="" className="h-full w-full object-contain" />
     </span>
   );
 }
