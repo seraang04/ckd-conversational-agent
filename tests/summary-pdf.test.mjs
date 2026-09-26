@@ -61,9 +61,11 @@ function patientEntries(language) {
     },
     {
       speaker: "patient",
-      topic: "values-2",
+      topic: "treatment-location",
       visibility: "shared",
-      answer: enSheet ? "Quite important" : "比较重要",
+      answer: enSheet
+        ? "Selected concerns:\n• A mix of care at home and at a centre could work for me"
+        : "选择的担忧：\n• 在家和到中心接受护理都可以",
     },
     {
       speaker: "patient",
@@ -87,7 +89,29 @@ function patientEntries(language) {
       speaker: "patient",
       topic: "worries-1",
       visibility: "shared",
-      answer: enSheet ? "Selected concerns:\n• Costs\n• Impact on family" : "选择的担忧：\n• 费用\n• 对家人的影响",
+      answer: enSheet
+        ? "Selected concerns:\n• Costs\n• Impact on family"
+        : "选择的担忧：\n• 费用\n• 对家人的影响",
+    },
+    {
+      speaker: "patient",
+      topic: "options-shown",
+      visibility: "shared",
+      answer: '{"kbVersion":"v1.0","source":"template","priorities":["travel","home"]}',
+    },
+    {
+      speaker: "patient",
+      topic: "options-question",
+      visibility: "shared",
+      answer: enSheet
+        ? "Could my daughter learn to do peritoneal dialysis at home with me?"
+        : "我女儿可以学会在家帮我做腹膜透析吗？",
+    },
+    {
+      speaker: "patient",
+      topic: "options-question",
+      visibility: "shared",
+      answer: enSheet ? "How long is the wait for a kidney?" : "等肾要等多久？",
     },
     {
       speaker: "patient",

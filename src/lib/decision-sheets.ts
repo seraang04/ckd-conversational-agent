@@ -1,4 +1,4 @@
-import { SCRIPT } from "./ckd-script.ts";
+import { OPTIONS_QUESTION_TOPIC, SCRIPT } from "./ckd-script.ts";
 import type { ScriptQuestion } from "./ckd-script.ts";
 
 export type Language = "en" | "zh";
@@ -220,18 +220,24 @@ export function buildPatientSheet(
       : { selected: [], free: "" };
   const values1Choices = values1?.choices ?? [];
 
-  const values2Entry = findEntry(entries, "patient", "values-2");
-  const values2Parsed =
-    values2Entry && values2Entry.visibility === "shared"
-      ? parseGuidedAnswer(values2Entry.answer, findQuestion("values-2"))
+  const location = findQuestion("treatment-location");
+  const locationEntry = findEntry(entries, "patient", "treatment-location");
+  const locationParsed =
+    locationEntry && locationEntry.visibility === "shared"
+      ? parseGuidedAnswer(locationEntry.answer, location)
       : { selected: [], free: "" };
-  const homeMap: (number | null)[] = [1, 2, 4, 5, null];
-  const homeChoiceIndex = values2Parsed.selected[0];
-  const homeStars = homeChoiceIndex !== undefined ? (homeMap[homeChoiceIndex] ?? null) : null;
-  const homeNote =
-    homeChoiceIndex !== undefined && findQuestion("values-2")?.choices?.[homeChoiceIndex]
-      ? findQuestion("values-2")!.choices![homeChoiceIndex]![language]
-      : "";
+  // treatment-location is multiple choice: the first of these found among the
+  // selected choices sets the row; any other choice leaves it blank.
+  const homeStarsByChoice: Record<string, number> = {
+    "I would prefer to receive most care at home if possible": 5,
+    "A mix of care at home and at a centre could work for me": 3,
+    "I would feel safer at a clinic or care centre with staff nearby": 1,
+  };
+  const homeChoice = locationParsed.selected
+    .map((index) => location?.choices?.[index])
+    .find((choice) => choice && choice.en in homeStarsByChoice);
+  const homeStars = homeChoice ? homeStarsByChoice[homeChoice.en]! : null;
+  const homeNote = homeChoice ? homeChoice[language] : "";
 
   // One row per option the patient was offered in the conversation, worded
   // the same way; "Something else" is only added below when it was ranked.
@@ -337,11 +343,24 @@ export function buildPatientSheet(
     ],
   });
 
+  // The options checkboxes above stay blank: the chatbot is not the healthcare
+  // team. Questions the patient asked during the options step go here instead.
+  const stillToUnderstand = dedupe(
+    entries
+      .filter(
+        (e) =>
+          e.speaker === "patient" && e.topic === OPTIONS_QUESTION_TOPIC && e.visibility === "shared",
+      )
+      .map((e) => e.answer),
+  );
   blocks.push({
     type: "fields",
     rows: [
       { label: tt("我目前的倾向", "My current preference"), value: "" },
-      { label: tt("我还需要了解的事", "What I still need to understand"), value: "" },
+      {
+        label: tt("我还需要了解的事", "What I still need to understand"),
+        value: stillToUnderstand.join(language === "en" ? "; " : "；"),
+      },
     ],
   });
 

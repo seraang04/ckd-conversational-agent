@@ -104,7 +104,13 @@ export function ConversationTurns({
   }
 
   if (turn.isPending || next?.complete) {
-    return <ConversationLoading label={t("正在准备下一题", "Preparing next question")} />;
+    return (
+      <ConversationLoading
+        label={t("正在准备下一题", "Preparing next question")}
+        showQuestionMessages
+        messageSeed={entries.length}
+      />
+    );
   }
 
   if (turn.isError) {
