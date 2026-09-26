@@ -62,6 +62,72 @@ export function usePdfPreview() {
   return { state, open, retry, close, busy: state.status === "loading" };
 }
 
+function PdfCanvas({ blob }: { blob: Blob }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [renderError, setRenderError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setRenderError(false);
+
+    (async () => {
+      try {
+        const [{ getDocument, GlobalWorkerOptions }, workerUrl] = await Promise.all([
+          import("pdfjs-dist"),
+          import("pdfjs-dist/build/pdf.worker.min.mjs?url").then((m) => m.default),
+        ]);
+        GlobalWorkerOptions.workerSrc = workerUrl;
+
+        const arrayBuffer = await blob.arrayBuffer();
+        if (cancelled) return;
+
+        const pdf = await getDocument({ data: arrayBuffer }).promise;
+        if (cancelled) return;
+
+        const container = containerRef.current;
+        if (!container) return;
+        container.innerHTML = "";
+
+        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+          if (cancelled) return;
+          const page = await pdf.getPage(pageNum);
+          if (cancelled) return;
+
+          const viewport = page.getViewport({ scale: window.devicePixelRatio * 1.5 });
+          const canvas = document.createElement("canvas");
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          canvas.style.width = "100%";
+          canvas.style.display = "block";
+          container.appendChild(canvas);
+
+          const ctx = canvas.getContext("2d")!;
+          await page.render({ canvasContext: ctx, viewport }).promise;
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error("pdf.js render error", err);
+          setRenderError(true);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [blob]);
+
+  if (renderError) return null;
+
+  return (
+    <div
+      ref={containerRef}
+      className="h-full w-full overflow-y-auto bg-muted"
+      aria-label="PDF preview"
+    />
+  );
+}
+
 export function ReportPreviewDialog({
   preview,
   language,
@@ -84,18 +150,13 @@ export function ReportPreviewDialog({
         <DialogHeader className="pr-8 text-left">
           <DialogTitle className="text-xl">{title}</DialogTitle>
           <DialogDescription className="text-base">
-            {t("下载或在新分页中打开。", "Download it or open it in a new tab.")}
+            {t("下载前请先检查一下。", "Have a look before you download it.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-muted">
           {state.status === "ready" ? (
-            <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-              <FileText className="h-12 w-12 text-muted-foreground" aria-hidden />
-              <p className="text-base text-muted-foreground">
-                {t("PDF 已准备好。点击下方按钮下载或在新分页中预览。", "Your PDF is ready. Download it or open it in a new tab to preview.")}
-              </p>
-            </div>
+            <PdfCanvas blob={state.blob} />
           ) : state.status === "error" ? (
             <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
               <Notice tone="warn">
@@ -140,7 +201,7 @@ export function ReportPreviewDialog({
             }}
           >
             <ExternalLink className="h-4 w-4" aria-hidden />
-            {t("在新分页中打开", "Open in a new tab")}
+            {t("看不到预览？在新分页打开", "Can't see the preview? Open it in a new tab")}
           </button>
         ) : null}
       </DialogContent>
