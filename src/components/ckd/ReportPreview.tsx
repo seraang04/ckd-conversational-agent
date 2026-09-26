@@ -18,7 +18,7 @@ type PreviewState =
   | { status: "closed" }
   | { status: "loading" }
   | { status: "error" }
-  | { status: "ready"; blob: Blob; url: string; dataUrl: string };
+  | { status: "ready"; blob: Blob; url: string };
 
 /**
  * Renders a sheet to PDF and holds it for the preview dialog. The sheet is
@@ -43,14 +43,7 @@ export function usePdfPreview() {
       const { sheetPdfBlob } = await import("@/lib/summary-pdf");
       const blob = await sheetPdfBlob(await makeSheet());
       if (runRef.current !== run) return;
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-      if (runRef.current !== run) return;
-      setState({ status: "ready", blob, url: URL.createObjectURL(blob), dataUrl });
+      setState({ status: "ready", blob, url: URL.createObjectURL(blob) });
     } catch (error) {
       console.error("Could not prepare PDF", error);
       if (runRef.current === run) setState({ status: "error" });
@@ -97,7 +90,11 @@ export function ReportPreviewDialog({
 
         <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-muted">
           {state.status === "ready" ? (
-            <embed src={state.dataUrl} type="application/pdf" title={title} className="h-full w-full" />
+            <object data={state.url} type="application/pdf" title={title} className="h-full w-full">
+              <p className="p-4 text-sm text-muted-foreground">
+                {t("无法显示预览，请下载 PDF 查看。", "Preview unavailable — please download the PDF to view it.")}
+              </p>
+            </object>
           ) : state.status === "error" ? (
             <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
               <Notice tone="warn">
@@ -138,12 +135,7 @@ export function ReportPreviewDialog({
             className={cn(quietActionClass, "min-h-0 justify-center text-sm sm:text-base")}
             onClick={() => {
               if (state.status !== "ready") return;
-              const tab = window.open("", "_blank");
-              if (!tab) return;
-              tab.document.write(
-                `<html><body style="margin:0"><embed src="${state.dataUrl}" type="application/pdf" width="100%" height="100%"/></body></html>`,
-              );
-              tab.document.close();
+              window.open(state.url, "_blank", "noopener");
             }}
           >
             <ExternalLink className="h-4 w-4" aria-hidden />
