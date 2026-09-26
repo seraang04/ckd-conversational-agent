@@ -8,6 +8,13 @@
       "when": 1789722132156,
       "tag": "0000_create_ckd_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790411158253,
+      "tag": "0001_lock_ckd_tables",
+      "breakpoints": true
     }
   ]
 }

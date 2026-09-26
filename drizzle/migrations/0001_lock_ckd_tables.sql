@@ -1,0 +1,11 @@
+DROP POLICY IF EXISTS "prototype open insert entries" ON public.ckd_entries;
+DROP POLICY IF EXISTS "prototype open read entries" ON public.ckd_entries;
+DROP POLICY IF EXISTS "prototype open update entries" ON public.ckd_entries;
+DROP POLICY IF EXISTS "prototype open insert sessions" ON public.ckd_sessions;
+DROP POLICY IF EXISTS "prototype open read sessions" ON public.ckd_sessions;
+DROP POLICY IF EXISTS "prototype open update sessions" ON public.ckd_sessions;
+DROP POLICY IF EXISTS "prototype open insert summaries" ON public.ckd_summaries;
+DROP POLICY IF EXISTS "prototype open read summaries" ON public.ckd_summaries;
+DROP POLICY IF EXISTS "prototype open update summaries" ON public.ckd_summaries;
+REVOKE ALL ON public.ckd_entries, public.ckd_sessions, public.ckd_summaries FROM anon, authenticated;
+GRANT ALL ON public.ckd_entries, public.ckd_sessions, public.ckd_summaries TO service_role;
