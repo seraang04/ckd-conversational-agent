@@ -10,6 +10,7 @@ import {
   type LifeDetails,
 } from "./decision-sheets";
 import type { ScriptQuestion } from "./ckd-script";
+import { EXPLAINABLE_DIMENSIONS } from "./treatment-options";
 
 const EntrySchema = z.object({
   speaker: z.string(),
@@ -227,6 +228,8 @@ export const buildClinicianSummary = createServerFn({ method: "POST" })
         sharedConcerns: z.array(z.string()),
         differingConcerns: z.array(z.string()),
         flaggedTopics: z.array(z.string()),
+        // Lines built by optionsInformationLines; empty when the step was not shown.
+        optionsInformation: z.array(z.string().max(2000)).max(40).default([]),
       })
       .parse(input),
   )
@@ -235,11 +238,55 @@ export const buildClinicianSummary = createServerFn({ method: "POST" })
     const text = await aiText(
       `${GUARDRAILS}
 Write a clinician-facing summary for the renal coordinator, readable in about one minute. Write it in English, with the patient's own Chinese phrases quoted where they are telling.
-Use these headings exactly, as markdown level-3 headings: "From the patient", "From the caregiver", "Shared and differing concerns", "Needs follow-up".
+Use these headings exactly, as markdown level-3 headings: "From the patient", "From the caregiver", "Shared and differing concerns", "Options information shown", "Needs follow-up".
+Under "Options information shown", report only what optionsInformation contains: the priorities used, the patient's reactions and their questions, attributed to the patient. The patient was shown approved information about every option; do not describe it as advice or as a preference. If optionsInformation is empty, write "Not shown."
 Mark clearly what came from the patient and what came from the caregiver. List deferred or private topics by topic name only, keeping the patient or caregiver attribution. Do not recommend, rank or compare treatments. End with one line: "Prepared before consultation. Not a clinical recommendation."`,
       JSON.stringify(data, null, 2),
     );
     return { summary: text };
+  });
+
+/**
+ * Explains how the treatment options differ on the patient's confirmed
+ * priorities. The AI may only pick KB statement ids and write short bridge
+ * sentences; anything that fails validation falls back to the template.
+ */
+export const explainOptionsForProfile = createServerFn({ method: "POST" })
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        priorities: z
+          .array(
+            z.object({
+              dimension: z.enum(EXPLAINABLE_DIMENSIONS as [string, ...string[]]),
+              evidence: z
+                .array(
+                  z.object({
+                    topic: z.string().max(100),
+                    label: z.string().max(300),
+                    rank: z.number().int().positive().optional(),
+                  }),
+                )
+                .max(20),
+            }),
+          )
+          .max(3),
+        allowGated: z.boolean(),
+        language: z.enum(["en", "zh"]),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data }) => {
+    const { explainOptions } = await import("./options-explanation");
+    const { aiJson, GUARDRAILS, OPTIONS_STEP_RULES } = await import("./ai.server");
+    const configured = Boolean(process.env["OPENAI_API_KEY"] || process.env["LOVABLE_API_KEY"]);
+    return explainOptions(
+      data as Parameters<typeof explainOptions>[0],
+      configured
+        ? (input, schema) =>
+            aiJson(`${GUARDRAILS}\n\n${OPTIONS_STEP_RULES}`, input, "options_explanation", schema)
+        : null,
+    );
   });
 
 const TurnSchema = z.object({

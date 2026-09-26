@@ -78,11 +78,13 @@ test("parseGuidedAnswer: multiple in Chinese", () => {
 });
 
 test("parseGuidedAnswer: single choice in English and Chinese", () => {
-  const question = findQuestion("values-2");
-  const en = parseGuidedAnswer("Very important", question);
-  assert.deepEqual(en.selected, [question.choices.findIndex((c) => c.en === "Very important")]);
-  const zh = parseGuidedAnswer("非常重要", question);
-  assert.deepEqual(zh.selected, [question.choices.findIndex((c) => c.zh === "非常重要")]);
+  const question = findQuestion("treatment-location");
+  const en = parseGuidedAnswer("I have no strong preference about location", question);
+  assert.deepEqual(en.selected, [
+    question.choices.findIndex((c) => c.en === "I have no strong preference about location"),
+  ]);
+  const zh = parseGuidedAnswer("对地点没有特别偏好", question);
+  assert.deepEqual(zh.selected, [question.choices.findIndex((c) => c.zh === "对地点没有特别偏好")]);
 });
 
 test("parseGuidedAnswer: plain free text with no matching choices falls back to free", () => {
@@ -107,7 +109,7 @@ test("starsForRank floors at 1 and peaks at 5", () => {
   assert.equal(starsForRank(6), 1);
 });
 
-test("patient sheet: ranking produces correct stars, 'Very important' gives 5, Longevity is null", () => {
+test("patient sheet: ranking produces correct stars, preferring care at home gives 5, Longevity is null", () => {
   const entries = [
     {
       speaker: "patient",
@@ -118,9 +120,10 @@ test("patient sheet: ranking produces correct stars, 'Very important' gives 5, L
     },
     {
       speaker: "patient",
-      topic: "values-2",
+      topic: "treatment-location",
       visibility: "shared",
-      answer: "Very important",
+      answer:
+        "Selected concerns:\n• My home has a clean, quiet and private space for care\n• I would prefer to receive most care at home if possible",
     },
   ];
   const sheet = buildPatientSheet("en", entries, emptyConfirmed, "2026-09-24");
@@ -133,6 +136,10 @@ test("patient sheet: ranking produces correct stars, 'Very important' gives 5, L
   assert.equal(byLabel["Work or activities I enjoy"].stars, 3);
   assert.equal(byLabel["Feeling comfortable"].stars, 2);
   assert.equal(byLabel["Staying at home for treatment"].stars, 5);
+  assert.equal(
+    byLabel["Staying at home for treatment"].note,
+    "I would prefer to receive most care at home if possible",
+  );
   assert.equal(byLabel["Longevity"].stars, null);
   assert.equal(byLabel["Flexibility"].stars, null);
   assert.equal(byLabel["Minimising treatment burden"].stars, null);
@@ -306,4 +313,101 @@ test("patient sheet: Hobbies still comes from values-3, unaffected by life detai
   const byLabel = Object.fromEntries(fields.rows.map((r) => [r.label, r.value]));
   assert.equal(byLabel["Hobbies"], "Gardening on weekends");
   assert.equal(byLabel["Work"], "Retired");
+});
+
+test("patient sheet: 'What I still need to understand' lists the patient's shared options questions", () => {
+  const entries = [
+    {
+      speaker: "patient",
+      topic: "options-question",
+      visibility: "shared",
+      answer: "Can my daughter learn PD?",
+    },
+    {
+      speaker: "patient",
+      topic: "options-question",
+      visibility: "shared",
+      answer: "How long is the wait for a kidney?",
+    },
+    {
+      speaker: "patient",
+      topic: "options-question",
+      visibility: "shared",
+      answer: "Can my daughter learn PD?",
+    },
+    {
+      speaker: "patient",
+      topic: "options-question",
+      visibility: "private",
+      answer: "Private question",
+    },
+    { speaker: "patient", topic: "options-question", visibility: "skipped", answer: "" },
+    {
+      speaker: "caregiver",
+      topic: "options-question",
+      visibility: "shared",
+      answer: "Caregiver question",
+    },
+  ];
+  const fieldValue = (sheet, label) =>
+    sheet.blocks
+      .filter((b) => b.type === "fields")
+      .flatMap((b) => b.rows)
+      .find((r) => r.label === label)?.value;
+
+  const en = buildPatientSheet("en", entries, emptyConfirmed, "2026-09-24");
+  assert.equal(
+    fieldValue(en, "What I still need to understand"),
+    "Can my daughter learn PD?; How long is the wait for a kidney?",
+  );
+  assert.equal(fieldValue(en, "My current preference"), "");
+  const zh = buildPatientSheet("zh", entries, emptyConfirmed, "2026-09-24");
+  assert.equal(
+    fieldValue(zh, "我还需要了解的事"),
+    "Can my daughter learn PD?；How long is the wait for a kidney?",
+  );
+  assert.equal(
+    fieldValue(
+      buildPatientSheet("en", [], emptyConfirmed, "2026-09-24"),
+      "What I still need to understand",
+    ),
+    "",
+  );
+});
+
+test("patient sheet: the options checkboxes are never ticked, even after the options step", () => {
+  const entries = [
+    {
+      speaker: "patient",
+      topic: "options-shown",
+      visibility: "shared",
+      answer: '{"kbVersion":"v1.0","source":"template","priorities":["travel","home"]}',
+    },
+    {
+      speaker: "patient",
+      topic: "options-question",
+      visibility: "shared",
+      answer: "Is PD painful?",
+    },
+  ];
+  const sheet = buildPatientSheet("en", entries, emptyConfirmed, "2026-09-24");
+  const checkboxes = sheet.blocks.filter((b) => b.type === "checkboxes");
+  assert.equal(checkboxes.length, 1);
+  assert.ok(checkboxes[0].items.every((item) => item.checked === false));
+});
+
+test("the options-shown record never appears on either sheet", () => {
+  const record = '{"kbVersion":"v1.0","source":"ai","priorities":["travel"]}';
+  const entries = [
+    { speaker: "patient", topic: "options-shown", visibility: "shared", answer: record },
+  ];
+  for (const language of ["en", "zh"]) {
+    const patientSheet = buildPatientSheet(language, entries, emptyConfirmed, "2026-09-24");
+    const caregiverSheet = buildCaregiverSheet(language, entries, "2026-09-24");
+    for (const sheet of [patientSheet, caregiverSheet]) {
+      const text = JSON.stringify(sheet);
+      assert.equal(text.includes("kbVersion"), false);
+      assert.equal(text.includes("Options step"), false);
+    }
+  }
 });

@@ -41,6 +41,25 @@ Local development blocks a remote Supabase URL by default. Set `VITE_ALLOW_REMOT
 
 The app generates each displayed question's speech when it is opened or replayed. `/api/speak` sends the English or Mandarin question text to `gpt-4o-mini-tts`; no MP3s are stored in the repository. A generated follow-up question may refer to something the patient said earlier, so its text may include patient information. Review this data flow and both languages' live voices before clinical use. If the speech service or browser autoplay is unavailable, the patient can use **Hear question**; the app also tries the device voice.
 
+### Treatment options step
+
+After the living-donation question, the patient can see how the four kidney treatment options differ on up to three things they said matter to them. The options are PD, haemodialysis at a centre, transplant and conservative kidney management.
+
+- **Facts:** every fact comes from the approved knowledge base in `docs/treatment-options-kb.md`.
+- **AI:** it may only pick statements from that file and write a short opening sentence. Its reply is checked, and the app falls back to a fixed template if the reply fails any check or AI is unavailable.
+- **Saved:** one `options-shown` entry per conversation, recording the knowledge base version, the priorities and whether the AI or template version was used. It feeds the "Options information shown" section of the clinician summary.
+- **More detail:** see [docs/options-step.md](docs/options-step.md), including known gaps.
+
+The step is always on. The patient can skip it.
+
+**Updating the knowledge base:** clinicians edit the markdown. The app reads a generated copy, so every change needs these steps:
+
+1. Edit `docs/treatment-options-kb.md`.
+2. Run `npm run kb:build`. It regenerates `src/lib/treatment-options.data.ts` and stops with a line number if a statement is malformed.
+3. Run `node --test tests/*.test.mjs` and `npx tsc --noEmit`. The tests fail if the generated file is out of date, if an option is missing a statement for a topic, or if the living-donation statements change.
+4. Commit **both** files together: the markdown and `src/lib/treatment-options.data.ts`.
+
+**Reviewing what patients see:** to check the content without running the app, run `npm run review:options`. It rewrites [docs/review/options-review.md](docs/review/options-review.md) with what five synthetic patients would see, in English and Chinese. Run it after changing the knowledge base, and commit the updated report with the rest.
 ### Patient-facing supportive messages
 
 While Clara prepares the next question, the app shows one of 20 brief, practical kidney-care prompts. They cover symptoms, treatment burden, daily life, independence, family, work, transport and questions for the care team. Each completed answer advances to a new message, and the set does not repeat until all 20 have been used. The content draws on [NIDDK's kidney communication guidance](https://www.niddk.nih.gov/health-information/professionals/clinical-tools-patient-management/kidney-disease/identify-manage-patients/talking-patients), [NSW Agency for Clinical Innovation's renal shared decision-making guidance](https://aci.health.nsw.gov.au/networks/renal/resources/choices/options/shared-decision-making), and its [treatment discussion guidance](https://aci.health.nsw.gov.au/networks/renal/resources/choices/options/treatment). Review the English and Simplified Chinese wording with the clinical team before deployment.

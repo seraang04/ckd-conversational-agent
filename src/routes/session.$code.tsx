@@ -41,6 +41,7 @@ import {
 } from "@/components/ckd/ui";
 import { VoiceAnswer } from "@/components/ckd/VoiceAnswer";
 import { SafetySupport } from "@/components/ckd/SafetySupport";
+import { OptionsStep } from "@/components/ckd/OptionsStep";
 import { hasExplicitSafetySignal } from "@/lib/safety";
 import { ConversationTurns } from "@/components/ckd/ConversationTurns";
 import {
@@ -61,6 +62,13 @@ import {
   inferPatientLifeDetails,
 } from "@/lib/ckd.functions";
 import type { AnswerSubmission } from "@/lib/guided-answer";
+import {
+  OPTIONS_SHOWN_QUESTION,
+  buildOptionsShownAnswer,
+  isOptionsShownEntry,
+  optionsInformationLines,
+  readOptionsInformation,
+} from "@/lib/options-record";
 import { speak, stopSpeaking } from "@/lib/speak";
 import { cn } from "@/lib/utils";
 
@@ -197,7 +205,7 @@ function SessionFlow() {
 
   const saveEntry = useCallback(
     async (
-      question: ScriptQuestion,
+      question: Pick<ScriptQuestion, "id" | "zh" | "en">,
       answer: string,
       mode: "voice" | "typed",
       who: "patient" | "caregiver",
@@ -210,7 +218,7 @@ function SessionFlow() {
           session_id: session.id,
           speaker: who,
           topic: question.id,
-          question: `${question.zh} / ${question.en}`,
+          question: question.zh === question.en ? question.en : `${question.zh} / ${question.en}`,
           answer,
           visibility,
           input_mode: mode,
@@ -424,7 +432,7 @@ function SessionFlow() {
             language={language}
             onChoose={(choice) => {
               if (choice === "defer") {
-                void handleNoAnswer(SENSITIVE_QUESTION, "patient", "deferred", "caregiver_intro");
+                void handleNoAnswer(SENSITIVE_QUESTION, "patient", "deferred", "options");
               } else {
                 void setStage(choice === "private" ? "sensitive_private" : "sensitive_together");
               }
@@ -458,17 +466,49 @@ function SessionFlow() {
                   submission,
                   "patient",
                   session.stage === "sensitive_private" ? "private" : "shared",
-                  "caregiver_intro",
+                  "options",
                 )
               }
               onSkip={() =>
-                void handleNoAnswer(SENSITIVE_QUESTION, "patient", "skipped", "caregiver_intro")
+                void handleNoAnswer(SENSITIVE_QUESTION, "patient", "skipped", "options")
               }
               onDefer={() =>
-                void handleNoAnswer(SENSITIVE_QUESTION, "patient", "deferred", "caregiver_intro")
+                void handleNoAnswer(SENSITIVE_QUESTION, "patient", "deferred", "options")
               }
             />
           </div>
+        ) : null}
+
+        {session.stage === "options" ? (
+          <OptionsStep
+            sessionId={session.id}
+            language={language}
+            entries={entries}
+            allowGated={entries.some(
+              (e) =>
+                e.speaker === "patient" &&
+                e.topic === SENSITIVE_QUESTION.id &&
+                e.visibility === "shared" &&
+                e.answer.trim() !== "",
+            )}
+            onDone={async (shown) => {
+              // A record of what was shown, not patient free text, so no safety screen.
+              if (
+                shown &&
+                !(await saveEntry(
+                  OPTIONS_SHOWN_QUESTION,
+                  buildOptionsShownAnswer(shown.source, shown.priorities),
+                  "typed",
+                  "patient",
+                  "shared",
+                  false,
+                ))
+              ) {
+                return;
+              }
+              await setStage("caregiver_intro");
+            }}
+          />
         ) : null}
 
         {session.stage === "caregiver_intro" ? (
@@ -592,7 +632,12 @@ function SessionFlow() {
                     const lifeDetails = await inferLifeDetails({
                       data: {
                         entries: entries
-                          .filter((e) => e.speaker === "patient" && e.visibility === "shared")
+                          .filter(
+                            (e) =>
+                              e.speaker === "patient" &&
+                              e.visibility === "shared" &&
+                              !isOptionsShownEntry(e),
+                          )
                           .map((e) => ({
                             speaker: e.speaker,
                             question: e.question,
@@ -1050,7 +1095,9 @@ function Confirmation({
         ...patientFlaggedTopics(entries, t, language),
         ...caregiverFlaggedTopics(entries, t, language),
       ];
-      const shared = entries.filter((e) => e.visibility === "shared" && e.answer.trim());
+      const shared = entries.filter(
+        (e) => e.visibility === "shared" && e.answer.trim() && !isOptionsShownEntry(e),
+      );
       const result = localBackend
         ? {
             patient_priorities: shared.filter((e) => e.speaker === "patient").map((e) => e.answer),
@@ -1062,7 +1109,7 @@ function Confirmation({
         : await synthesise({
             data: {
               entries: entries
-                .filter((e) => e.visibility === "shared")
+                .filter((e) => e.visibility === "shared" && !isOptionsShownEntry(e))
                 .map((e) => ({
                   speaker: e.speaker,
                   question: e.question,
@@ -1136,12 +1183,14 @@ function Confirmation({
         // The patient only ever reviews/edits her own flagged topics; the
         // caregiver's are preserved untouched so the care team still sees them.
         flaggedTopics: [...picked("flagged_topics"), ...caregiverFlaggedTopics(entries, t, language)],
+        optionsInformation: optionsInformationLines(readOptionsInformation(entries)),
       };
       const text = localBackend
         ? [
             ...payload.patientPriorities,
             ...payload.caregiverSupport,
             ...payload.flaggedTopics,
+            ...payload.optionsInformation,
           ].join("\n")
         : (await summarise({ data: payload })).summary;
       await saveConversationSummary(sessionId, {
