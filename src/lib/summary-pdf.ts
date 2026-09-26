@@ -571,30 +571,17 @@ function renderSheet(pdf: PDFDocument, sheet: Sheet, fonts: Fonts, m: Metrics) {
   };
 
   const drawTreatmentComparison = (
-    priorities: Extract<import("./decision-sheets.ts").SheetBlock, { type: "treatment-comparison" }>["priorities"],
+    block: Extract<import("./decision-sheets.ts").SheetBlock, { type: "treatment-comparison" }>,
   ) => {
     const colWidth = CONTENT_WIDTH / 2;
     const barWidth = colWidth - 12;
 
-    for (let di = 0; di < priorities.length; di++) {
-      const dim = priorities[di]!;
-      if (di > 0) advance(m.tcDimGap);
-
-      // Dimension sub-heading
-      advance(m.tcDimHeadingSize * 1.3);
-      drawRun(page, MARGIN, y, dim.dimensionLabel, m.tcDimHeadingSize, true, theme.accent, fonts);
-      advance(m.tcDimHeadingGap);
-      page.drawLine({
-        start: { x: MARGIN, y },
-        end: { x: MARGIN + CONTENT_WIDTH, y },
-        thickness: 0.5,
-        color: LINE_GREY,
-      });
-
-      // Options in 2-column × 2-row layout
+    const drawOptionsGrid = (
+      options: { optionLabel: string; prosCount: number; consCount: number; statements: { tag: "helps" | "harder" | "practical"; text: string }[] }[],
+    ) => {
       for (let row = 0; row < 2; row++) {
-        const leftOpt = dim.options[row * 2];
-        const rightOpt = dim.options[row * 2 + 1];
+        const leftOpt = options[row * 2];
+        const rightOpt = options[row * 2 + 1];
 
         const leftHeight = leftOpt ? measureOptionHeight(leftOpt, barWidth) : 0;
         const rightHeight = rightOpt ? measureOptionHeight(rightOpt, barWidth) : 0;
@@ -603,12 +590,8 @@ function renderSheet(pdf: PDFDocument, sheet: Sheet, fonts: Fonts, m: Metrics) {
         ensureSpace(rowHeight + m.tcOptionGap);
         const rowStartY = y;
 
-        if (leftOpt) {
-          drawOption(leftOpt, MARGIN, rowStartY, barWidth);
-        }
-        if (rightOpt) {
-          drawOption(rightOpt, MARGIN + colWidth, rowStartY, barWidth);
-        }
+        if (leftOpt) drawOption(leftOpt, MARGIN, rowStartY, barWidth);
+        if (rightOpt) drawOption(rightOpt, MARGIN + colWidth, rowStartY, barWidth);
 
         y = rowStartY - rowHeight;
 
@@ -620,6 +603,40 @@ function renderSheet(pdf: PDFDocument, sheet: Sheet, fonts: Fonts, m: Metrics) {
         });
         y -= m.tcOptionGap;
       }
+    };
+
+    // Overall summary
+    const isChinese = /[一-鿿]/.test(sheet.title);
+    const aggregateHeading = isChinese ? "综合概览" : "Overall summary";
+
+    advance(m.tcDimHeadingSize * 1.3);
+    drawRun(page, MARGIN, y, aggregateHeading, m.tcDimHeadingSize, true, theme.accent, fonts);
+    advance(m.tcDimHeadingGap);
+    page.drawLine({
+      start: { x: MARGIN, y },
+      end: { x: MARGIN + CONTENT_WIDTH, y },
+      thickness: 0.5,
+      color: LINE_GREY,
+    });
+
+    drawOptionsGrid(block.aggregate);
+
+    // Per-dimension detail
+    for (let di = 0; di < block.priorities.length; di++) {
+      const dim = block.priorities[di]!;
+      advance(m.tcDimGap);
+
+      advance(m.tcDimHeadingSize * 1.3);
+      drawRun(page, MARGIN, y, dim.dimensionLabel, m.tcDimHeadingSize, true, theme.accent, fonts);
+      advance(m.tcDimHeadingGap);
+      page.drawLine({
+        start: { x: MARGIN, y },
+        end: { x: MARGIN + CONTENT_WIDTH, y },
+        thickness: 0.5,
+        color: LINE_GREY,
+      });
+
+      drawOptionsGrid(dim.options);
     }
   };
 
@@ -651,7 +668,7 @@ function renderSheet(pdf: PDFDocument, sheet: Sheet, fonts: Fonts, m: Metrics) {
         drawNote(block.text);
         break;
       case "treatment-comparison":
-        drawTreatmentComparison(block.priorities);
+        drawTreatmentComparison(block);
         break;
     }
   };

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Check, Volume2 } from "lucide-react";
+import { Check, Volume2, ThumbsUp, ThumbsDown, Info } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { BigButton, Card, ConversationLoading, Notice, quietActionClass } from "./ui";
@@ -272,10 +272,33 @@ function OptionCards({
                 {option.link[language]}
               </p>
             ) : null}
-            <ul className="list-disc space-y-2 pl-6 text-lg leading-relaxed text-foreground">
-              {option.statementIds.map((id) => (
-                <li key={id}>{statementById(id)?.[language]}</li>
-              ))}
+            <ul className="space-y-2 text-lg leading-relaxed text-foreground">
+              {option.statementIds.map((id) => {
+                const stmt = statementById(id);
+                if (!stmt) return null;
+                const tag = stmt.tag;
+                return (
+                  <li key={id} className="flex items-start gap-2">
+                    {tag === "helps" ? (
+                      <span className="mt-1 inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-sm font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400">
+                        <ThumbsUp className="h-3.5 w-3.5" aria-hidden />
+                        {language === "zh" ? "优点" : "Pro"}
+                      </span>
+                    ) : tag === "harder" ? (
+                      <span className="mt-1 inline-flex shrink-0 items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-sm font-medium text-amber-700 dark:bg-amber-900/40 dark:text-amber-400">
+                        <ThumbsDown className="h-3.5 w-3.5" aria-hidden />
+                        {language === "zh" ? "挑战" : "Con"}
+                      </span>
+                    ) : (
+                      <span className="mt-1 inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-sm font-medium text-muted-foreground">
+                        <Info className="h-3.5 w-3.5" aria-hidden />
+                        {language === "zh" ? "须知" : "Note"}
+                      </span>
+                    )}
+                    <span>{stmt[language]}</span>
+                  </li>
+                );
+              })}
             </ul>
           </Card>
         ))}

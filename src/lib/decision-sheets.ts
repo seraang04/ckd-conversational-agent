@@ -43,6 +43,13 @@ export type SheetBlock =
   | { type: "note"; text: string }
   | {
       type: "treatment-comparison";
+      aggregate: {
+        optionId: string;
+        optionLabel: string;
+        prosCount: number;
+        consCount: number;
+        statements: { tag: "helps" | "harder" | "practical"; text: string }[];
+      }[];
       priorities: {
         dimension: string;
         dimensionLabel: string;
@@ -213,7 +220,7 @@ function buildTreatmentComparison(
         optionLabel: optionLabel(optionId, language),
         prosCount: pros.length,
         consCount: cons.length,
-        statements: [],
+        statements: statements.map((s) => ({ tag: s.tag as "helps" | "harder" | "practical", text: s[language] })),
       };
     });
     return {
@@ -222,7 +229,25 @@ function buildTreatmentComparison(
       options,
     };
   });
-  return { type: "treatment-comparison", priorities };
+
+  const aggregate = OPTION_ORDER.map((optionId) => {
+    const allStatements: { tag: "helps" | "harder" | "practical"; text: string }[] = [];
+    for (const dim of priorities) {
+      const opt = dim.options.find((o) => o.optionId === optionId);
+      if (opt) allStatements.push(...opt.statements);
+    }
+    const prosCount = allStatements.filter((s) => s.tag === "helps" || s.tag === "practical").length;
+    const consCount = allStatements.filter((s) => s.tag === "harder").length;
+    return {
+      optionId,
+      optionLabel: optionLabel(optionId, language),
+      prosCount,
+      consCount,
+      statements: allStatements,
+    };
+  });
+
+  return { type: "treatment-comparison", aggregate, priorities };
 }
 
 export function buildPatientSheet(
