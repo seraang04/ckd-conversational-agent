@@ -41,6 +41,10 @@ Local development blocks a remote Supabase URL by default. Set `VITE_ALLOW_REMOT
 
 The app generates each displayed question's speech when it is opened or replayed. `/api/speak` sends the English or Mandarin question text to `gpt-4o-mini-tts`; no MP3s are stored in the repository. A generated follow-up question may refer to something the patient said earlier, so its text may include patient information. Review this data flow and both languages' live voices before clinical use. If the speech service or browser autoplay is unavailable, the patient can use **Hear question**; the app also tries the device voice.
 
+### Patient-facing supportive messages
+
+While Clara prepares the next question, the app shows one of 20 brief, practical kidney-care prompts. They cover symptoms, treatment burden, daily life, independence, family, work, transport and questions for the care team. Each completed answer advances to a new message, and the set does not repeat until all 20 have been used. The content draws on [NIDDK's kidney communication guidance](https://www.niddk.nih.gov/health-information/professionals/clinical-tools-patient-management/kidney-disease/identify-manage-patients/talking-patients), [NSW Agency for Clinical Innovation's renal shared decision-making guidance](https://aci.health.nsw.gov.au/networks/renal/resources/choices/options/shared-decision-making), and its [treatment discussion guidance](https://aci.health.nsw.gov.au/networks/renal/resources/choices/options/treatment). Review the English and Simplified Chinese wording with the clinical team before deployment.
+
 ### Working with the Lovable project
 
 The connected [Lovable project](https://lovable.dev/projects/80a7908c-95f0-4200-bb74-f27375075d74) already has Cloud database enabled and the `ckd_sessions`, `ckd_entries`, and `ckd_summaries` tables. Do not rerun the creation SQL against that database.
