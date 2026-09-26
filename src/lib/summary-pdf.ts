@@ -620,6 +620,27 @@ function renderSheet(pdf: PDFDocument, sheet: Sheet, fonts: Fonts, m: Metrics) {
     });
 
     drawOptionsGrid(block.aggregate);
+
+    if (block.careTeamTopics.length) {
+      const isChinese = /[一-鿿]/.test(sheet.title);
+      const ctHeading = isChinese
+        ? "以下话题请与您的医疗团队进一步讨论："
+        : "Topics to discuss with your care team:";
+      advance(m.tcDimHeadingSize * 1.5);
+      drawRun(page, MARGIN, y, ctHeading, m.tcDimHeadingSize, true, theme.accent, fonts);
+      for (const topic of block.careTeamTopics) {
+        const lines = wrapText(fonts, topic, m.tcStatementSize, false, CONTENT_WIDTH - m.bulletIndent);
+        for (let li = 0; li < lines.length; li++) {
+          advance(m.tcStatementLineHeight);
+          if (li === 0) {
+            page.drawCircle({ x: MARGIN + 3, y: y + m.tcStatementSize * 0.32, size: 1.6, color: theme.accent });
+            drawRun(page, MARGIN + m.bulletIndent, y, lines[li]!, m.tcStatementSize, false, DARK, fonts);
+          } else {
+            drawRun(page, MARGIN + m.bulletIndent, y, lines[li]!, m.tcStatementSize, false, DARK, fonts);
+          }
+        }
+      }
+    }
   };
 
   const drawBlock = (block: SheetBlock) => {

@@ -61,6 +61,8 @@ export type SheetBlock =
           statements: { tag: "helps" | "harder" | "practical"; text: string }[];
         }[];
       }[];
+      /** Topics raised by the patient that belong with the care team, not the comparison. */
+      careTeamTopics: string[];
     };
 
 /** One row of the caregiver's "What I can help with" grid. */
@@ -97,11 +99,11 @@ function findQuestion(topic: string): ScriptQuestion | undefined {
   return SCRIPT.find((q) => q.id === topic);
 }
 
-function findEntry(entries: SheetEntry[], speaker: string, topic: string): SheetEntry | undefined {
+function findEntry(entries: readonly SheetEntry[], speaker: string, topic: string): SheetEntry | undefined {
   return entries.find((e) => e.speaker === speaker && e.topic === topic);
 }
 
-function sharedAnswer(entries: SheetEntry[], speaker: string, topic: string): string {
+function sharedAnswer(entries: readonly SheetEntry[], speaker: string, topic: string): string {
   const entry = findEntry(entries, speaker, topic);
   if (!entry || entry.visibility !== "shared") return "";
   return entry.answer.trim();
@@ -204,12 +206,113 @@ export function formatPreparedOn(date: Date, language: Language): string {
   });
 }
 
+/**
+ * Extracts practical constraints the patient explicitly selected — home space
+ * limits, family/household barriers, and mobility/access difficulties — from
+ * their choice answers, without any AI interpretation.
+ */
+function extractPracticalConstraints(
+  entries: readonly SheetEntry[],
+  language: Language,
+): { home: string[]; mobility: string[]; careTeamTopics: string[] } {
+  const tt = (zh: string, en: string) => t(zh, en, language);
+
+  const HOME_LIMIT_CHOICES: Record<string, { zh: string; en: string }> = {
+    "Space or storage at home is limited": {
+      zh: "家中空间或储物空间有限",
+      en: "Space or storage at home is limited",
+    },
+    "Household or family responsibilities could make care at home difficult": {
+      zh: "家庭或家务责任可能使居家治疗困难",
+      en: "Household or family responsibilities could make home care difficult",
+    },
+  };
+
+  const MOBILITY_CHOICES: Record<string, { zh: string; en: string }> = {
+    "I have some difficulty walking, standing or using stairs": {
+      zh: "步行、站立或爬楼梯有些困难",
+      en: "Difficulty walking, standing or using stairs",
+    },
+    "I use a walking aid, walker or wheelchair": {
+      zh: "使用助行器或轮椅",
+      en: "Uses a walking aid or wheelchair",
+    },
+    "I sometimes need another person's help": {
+      zh: "有时需要他人协助",
+      en: "Sometimes needs another person's help",
+    },
+    "My energy or mobility can change from day to day": {
+      zh: "精力和行动能力因日而异",
+      en: "Energy or mobility varies day to day",
+    },
+  };
+
+  const TRAVEL_HARDSHIP_CHOICES: Record<string, { zh: string; en: string }> = {
+    "Distance, cost or waiting time can make travel difficult": {
+      zh: "路途、费用或等候时间使出行困难",
+      en: "Distance, cost or wait time makes travel difficult",
+    },
+    "Frequent trips away from home would be difficult to arrange": {
+      zh: "频繁离家出行难以安排",
+      en: "Frequent trips away from home are difficult to arrange",
+    },
+  };
+
+  const home: string[] = [];
+  const mobility: string[] = [];
+  const careTeamTopics: string[] = [];
+
+  const locationEntry = findEntry(entries, "patient", "treatment-location");
+  if (locationEntry && locationEntry.visibility === "shared") {
+    const q = findQuestion("treatment-location");
+    const { selected } = parseGuidedAnswer(locationEntry.answer, q);
+    for (const index of selected) {
+      const choiceEn = q?.choices?.[index]?.en;
+      if (choiceEn && choiceEn in HOME_LIMIT_CHOICES) {
+        const label = HOME_LIMIT_CHOICES[choiceEn]!;
+        home.push(tt(label.zh, label.en));
+      }
+    }
+  }
+
+  const mobilityEntry = findEntry(entries, "patient", "treatment-mobility");
+  if (mobilityEntry && mobilityEntry.visibility === "shared") {
+    const q = findQuestion("treatment-mobility");
+    const { selected } = parseGuidedAnswer(mobilityEntry.answer, q);
+    for (const index of selected) {
+      const choiceEn = q?.choices?.[index]?.en;
+      if (choiceEn && choiceEn in MOBILITY_CHOICES) {
+        const label = MOBILITY_CHOICES[choiceEn]!;
+        mobility.push(tt(label.zh, label.en));
+      }
+    }
+  }
+
+  const travelEntry = findEntry(entries, "patient", "treatment-travel");
+  if (travelEntry && travelEntry.visibility === "shared") {
+    const q = findQuestion("treatment-travel");
+    const { selected } = parseGuidedAnswer(travelEntry.answer, q);
+    for (const index of selected) {
+      const choiceEn = q?.choices?.[index]?.en;
+      if (choiceEn && choiceEn in TRAVEL_HARDSHIP_CHOICES) {
+        const label = TRAVEL_HARDSHIP_CHOICES[choiceEn]!;
+        careTeamTopics.push(tt(label.zh, label.en));
+      }
+    }
+  }
+
+  return { home, mobility, careTeamTopics };
+}
+
 function buildTreatmentComparison(
   entries: readonly SheetEntry[],
   allowGated: boolean,
   language: Language,
 ): Extract<SheetBlock, { type: "treatment-comparison" }> {
+  const tt = (zh: string, en: string) => t(zh, en, language);
   const profile = buildPatientProfile(entries);
+  const constraints = extractPracticalConstraints(entries, language);
+
   const priorities = profile.priorities.map((dimension) => {
     const options = OPTION_ORDER.map((optionId) => {
       const statements = statementsFor(optionId, dimension, { allowGated });
@@ -247,7 +350,20 @@ function buildTreatmentComparison(
     };
   });
 
-  return { type: "treatment-comparison", aggregate, priorities };
+  // Surface clinically relevant handoff dimensions as care-team topics.
+  const HANDOFF_LABELS: Record<string, { zh: string; en: string }> = {
+    longevity: { zh: "治疗对寿命的影响", en: "How treatment may affect how long I live" },
+    cost: { zh: "治疗费用", en: "Treatment costs" },
+  };
+  const careTeamTopics: string[] = [
+    ...profile.handoffs.map((dim) => {
+      const label = HANDOFF_LABELS[dim];
+      return label ? tt(label.zh, label.en) : dim;
+    }),
+    ...constraints.careTeamTopics,
+  ];
+
+  return { type: "treatment-comparison", aggregate, priorities, careTeamTopics };
 }
 
 export function buildPatientSheet(
@@ -344,15 +460,23 @@ export function buildPatientSheet(
   });
 
   blocks.push({ type: "section", heading: tt("我的支持系统", "My support") });
-  blocks.push({
-    type: "fields",
-    rows: [
-      { label: tt("主要照顾者", "Main caregiver"), value: sharedAnswer(entries, "patient", "life-3") },
-      { label: tt("其他支持", "Other support"), value: "" },
-      { label: tt("交通", "Transport"), value: sharedAnswer(entries, "patient", "life-2") },
-      { label: tt("居家考量", "Home considerations"), value: "" },
-    ],
-  });
+  const practicalConstraints = extractPracticalConstraints(entries, language);
+  const supportRows: { label: string; value: string }[] = [
+    { label: tt("主要照顾者", "Main caregiver"), value: sharedAnswer(entries, "patient", "life-3") },
+    { label: tt("其他支持", "Other support"), value: "" },
+    { label: tt("交通", "Transport"), value: sharedAnswer(entries, "patient", "life-2") },
+    {
+      label: tt("居家考量", "Home considerations"),
+      value: practicalConstraints.home.join(language === "en" ? "; " : "；"),
+    },
+  ];
+  if (practicalConstraints.mobility.length) {
+    supportRows.push({
+      label: tt("行动能力", "Mobility"),
+      value: practicalConstraints.mobility.join(language === "en" ? "; " : "；"),
+    });
+  }
+  blocks.push({ type: "fields", rows: supportRows });
 
   blocks.push({ type: "section", heading: tt("我的问题/担忧", "My questions/concerns") });
   const worries1 = findQuestion("worries-1");
