@@ -1,10 +1,11 @@
 import { useText, LanguageContext, type Language } from "@/lib/language";
 import { Link } from "@tanstack/react-router";
 import { LoaderCircle, type LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { ClaraMascot } from "@/components/ckd/ClaraMascot";
 import logo from "@/assets/logo.png";
+import { questionLoadingMessage } from "@/lib/loading-messages";
 import { cn } from "@/lib/utils";
 
 export function BrandMark({ className }: { className?: string }) {
@@ -212,8 +213,18 @@ export function LoadingLabel({ children }: { children: ReactNode }) {
 }
 
 /** The single full-page loading treatment used throughout the conversation. */
-export function ConversationLoading({ label }: { label: string }) {
+export function ConversationLoading({
+  label,
+  showQuestionMessages = false,
+  messageSeed = 0,
+}: {
+  label: string;
+  showQuestionMessages?: boolean;
+  messageSeed?: number;
+}) {
   const t = useText();
+  const message = showQuestionMessages ? questionLoadingMessage(messageSeed) : null;
+
   return (
     <section
       aria-busy="true"
@@ -227,6 +238,16 @@ export function ConversationLoading({ label }: { label: string }) {
       <p role="status" className="text-xl font-semibold text-foreground">
         {label}
       </p>
+      {message ? (
+        <div
+          key={messageSeed}
+          className="loading-companion-message flex min-h-24 w-full max-w-xl items-center justify-center rounded-3xl border border-border bg-card px-6 py-5 shadow-sm"
+        >
+          <p className="text-xl font-medium leading-relaxed text-foreground">
+            {t(message.zh, message.en)}
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }

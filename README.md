@@ -60,6 +60,9 @@ The step is always on. The patient can skip it.
 4. Commit **both** files together: the markdown and `src/lib/treatment-options.data.ts`.
 
 **Reviewing what patients see:** to check the content without running the app, run `npm run review:options`. It rewrites [docs/review/options-review.md](docs/review/options-review.md) with what five synthetic patients would see, in English and Chinese. Run it after changing the knowledge base, and commit the updated report with the rest.
+### Patient-facing supportive messages
+
+While Clara prepares the next question, the app shows one of 20 brief, practical kidney-care prompts. They cover symptoms, treatment burden, daily life, independence, family, work, transport and questions for the care team. Each completed answer advances to a new message, and the set does not repeat until all 20 have been used. The content draws on [NIDDK's kidney communication guidance](https://www.niddk.nih.gov/health-information/professionals/clinical-tools-patient-management/kidney-disease/identify-manage-patients/talking-patients), [NSW Agency for Clinical Innovation's renal shared decision-making guidance](https://aci.health.nsw.gov.au/networks/renal/resources/choices/options/shared-decision-making), and its [treatment discussion guidance](https://aci.health.nsw.gov.au/networks/renal/resources/choices/options/treatment). Review the English and Simplified Chinese wording with the clinical team before deployment.
 
 ### Working with the Lovable project
 
