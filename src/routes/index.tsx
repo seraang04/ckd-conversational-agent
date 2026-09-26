@@ -1,7 +1,7 @@
 import idleClaraStrip from "@/assets/clara-animation/idle.webp";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
-import { BrandMark } from "@/components/ckd/ui";
+import { ClaraMascot } from "@/components/ckd/ClaraMascot";
 import type { Language } from "@/lib/language";
 
 export const Route = createFileRoute("/")({
@@ -34,7 +34,7 @@ function Home() {
   return (
     <div className="min-h-screen bg-patient-surface px-5">
       <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col items-center justify-center py-10">
-        <BrandMark className="h-20 w-20" />
+        <ClaraMascot state="idle" alt="Clara" className="h-40 w-40 aspect-[12/13] sm:h-52 sm:w-52" />
 
         <h1 className="mt-6 text-center text-3xl font-semibold leading-snug text-foreground">
           <span lang="en" className="block">
