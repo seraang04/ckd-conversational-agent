@@ -605,7 +605,7 @@ function renderSheet(pdf: PDFDocument, sheet: Sheet, fonts: Fonts, m: Metrics) {
       }
     };
 
-    // Overall summary
+    // Overall summary — replaces per-dimension breakdown
     const isChinese = /[一-鿿]/.test(sheet.title);
     const aggregateHeading = isChinese ? "综合概览" : "Overall summary";
 
@@ -620,24 +620,6 @@ function renderSheet(pdf: PDFDocument, sheet: Sheet, fonts: Fonts, m: Metrics) {
     });
 
     drawOptionsGrid(block.aggregate);
-
-    // Per-dimension detail
-    for (let di = 0; di < block.priorities.length; di++) {
-      const dim = block.priorities[di]!;
-      advance(m.tcDimGap);
-
-      advance(m.tcDimHeadingSize * 1.3);
-      drawRun(page, MARGIN, y, dim.dimensionLabel, m.tcDimHeadingSize, true, theme.accent, fonts);
-      advance(m.tcDimHeadingGap);
-      page.drawLine({
-        start: { x: MARGIN, y },
-        end: { x: MARGIN + CONTENT_WIDTH, y },
-        thickness: 0.5,
-        color: LINE_GREY,
-      });
-
-      drawOptionsGrid(dim.options);
-    }
   };
 
   const drawBlock = (block: SheetBlock) => {
