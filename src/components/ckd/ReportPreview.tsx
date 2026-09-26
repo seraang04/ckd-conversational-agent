@@ -18,7 +18,7 @@ type PreviewState =
   | { status: "closed" }
   | { status: "loading" }
   | { status: "error" }
-  | { status: "ready"; blob: Blob; url: string };
+  | { status: "ready"; blob: Blob; url: string; dataUrl: string };
 
 /**
  * Renders a sheet to PDF and holds it for the preview dialog. The sheet is
@@ -43,7 +43,14 @@ export function usePdfPreview() {
       const { sheetPdfBlob } = await import("@/lib/summary-pdf");
       const blob = await sheetPdfBlob(await makeSheet());
       if (runRef.current !== run) return;
-      setState({ status: "ready", blob, url: URL.createObjectURL(blob) });
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      if (runRef.current !== run) return;
+      setState({ status: "ready", blob, url: URL.createObjectURL(blob), dataUrl });
     } catch (error) {
       console.error("Could not prepare PDF", error);
       if (runRef.current === run) setState({ status: "error" });
@@ -90,7 +97,7 @@ export function ReportPreviewDialog({
 
         <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-muted">
           {state.status === "ready" ? (
-            <iframe src={state.url} title={title} className="h-full w-full" />
+            <iframe src={state.dataUrl} title={title} className="h-full w-full" />
           ) : state.status === "error" ? (
             <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
               <Notice tone="warn">
