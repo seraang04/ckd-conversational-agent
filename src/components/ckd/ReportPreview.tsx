@@ -84,17 +84,18 @@ export function ReportPreviewDialog({
         <DialogHeader className="pr-8 text-left">
           <DialogTitle className="text-xl">{title}</DialogTitle>
           <DialogDescription className="text-base">
-            {t("下载前请先检查一下。", "Have a look before you download it.")}
+            {t("下载或在新分页中打开。", "Download it or open it in a new tab.")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-muted">
           {state.status === "ready" ? (
-            <object data={state.url} type="application/pdf" title={title} className="h-full w-full">
-              <p className="p-4 text-sm text-muted-foreground">
-                {t("无法显示预览，请下载 PDF 查看。", "Preview unavailable — please download the PDF to view it.")}
+            <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
+              <FileText className="h-12 w-12 text-muted-foreground" aria-hidden />
+              <p className="text-base text-muted-foreground">
+                {t("PDF 已准备好。点击下方按钮下载或在新分页中预览。", "Your PDF is ready. Download it or open it in a new tab to preview.")}
               </p>
-            </object>
+            </div>
           ) : state.status === "error" ? (
             <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
               <Notice tone="warn">
@@ -139,7 +140,7 @@ export function ReportPreviewDialog({
             }}
           >
             <ExternalLink className="h-4 w-4" aria-hidden />
-            {t("看不到预览？在新分页打开", "Can't see the preview? Open it in a new tab")}
+            {t("在新分页中打开", "Open in a new tab")}
           </button>
         ) : null}
       </DialogContent>
