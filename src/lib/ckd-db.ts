@@ -1,4 +1,10 @@
-import { supabase } from "@/integrations/supabase/client";
+import {
+  addConversationEntryFn,
+  createConversationFn,
+  fetchSessionBundleFn,
+  saveConversationSummaryFn,
+  updateConversationFn,
+} from "@/lib/ckd-db.functions";
 import type { Language } from "@/lib/language";
 
 export type SessionRow = {
@@ -62,83 +68,34 @@ function requireService() {
 
 export async function createConversation(language: Language) {
   requireService();
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const code = makeCode();
-    const { error } = await supabase.from("ckd_sessions").insert({
-      code,
-      patient_label: "Patient",
-      language,
-      stage: localBackend ? "explore" : "consent",
-      readiness: "ready",
-      consent_recording: false,
-      consent_sharing: false,
-    });
-    if (!error) return code;
-    if (error.code !== "23505" || attempt === 2) throw error;
-  }
-  throw new Error("Could not create conversation");
+  const { code } = await createConversationFn({
+    data: { language, stage: localBackend ? "explore" : "consent" },
+  });
+  return code;
 }
 
 export async function updateConversation(id: string, patch: Record<string, unknown>) {
   requireService();
-  const { error } = await supabase
-    .from("ckd_sessions")
-    .update(patch as Partial<SessionRow>)
-    .eq("id", id);
-  if (error) throw error;
+  await updateConversationFn({ data: { id, patch: patch as never } });
 }
 
 export async function addConversationEntry(entry: Omit<EntryRow, "id" | "created_at">) {
   requireService();
-  const { error } = await supabase.from("ckd_entries").insert(entry);
-  if (error) throw error;
+  await addConversationEntryFn({ data: entry });
 }
 
 export async function saveConversationSummary(id: string, patch: Partial<SummaryRow>) {
   requireService();
-  const { error } = await supabase
-    .from("ckd_summaries")
-    .upsert(
-      { session_id: id, ...patch, updated_at: new Date().toISOString() },
-      { onConflict: "session_id" },
-    );
-  if (error) throw error;
+  await saveConversationSummaryFn({ data: { id, patch: patch as never } });
 }
 
 export async function fetchSessionBundle(code: string) {
   requireService();
-  const { data: session, error } = await supabase
-    .from("ckd_sessions")
-    .select("*")
-    .eq("code", code.toUpperCase())
-    .maybeSingle();
-  if (error) throw error;
-  if (!session) return null;
-
-  const [entriesResult, summaryResult] = await Promise.all([
-    supabase
-      .from("ckd_entries")
-      .select("*")
-      .eq("session_id", session.id)
-      .order("created_at", { ascending: true }),
-    supabase.from("ckd_summaries").select("*").eq("session_id", session.id).maybeSingle(),
-  ]);
-  if (entriesResult.error) throw entriesResult.error;
-  if (summaryResult.error) throw summaryResult.error;
-
+  const bundle = await fetchSessionBundleFn({ data: { code } });
+  if (!bundle) return null;
   return {
-    session: session as SessionRow,
-    entries: (entriesResult.data ?? []) as EntryRow[],
-    summary: (summaryResult.data ?? null) as SummaryRow | null,
+    session: bundle.session as SessionRow,
+    entries: bundle.entries as EntryRow[],
+    summary: bundle.summary as unknown as SummaryRow | null,
   };
-}
-
-export async function fetchCompletedSessions() {
-  requireService();
-  const { data, error } = await supabase
-    .from("ckd_sessions")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as SessionRow[];
 }
