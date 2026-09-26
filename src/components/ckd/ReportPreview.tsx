@@ -97,7 +97,7 @@ export function ReportPreviewDialog({
 
         <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-muted">
           {state.status === "ready" ? (
-            <iframe src={state.dataUrl} title={title} className="h-full w-full" />
+            <embed src={state.dataUrl} type="application/pdf" title={title} className="h-full w-full" />
           ) : state.status === "error" ? (
             <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
               <Notice tone="warn">
@@ -133,15 +133,22 @@ export function ReportPreviewDialog({
           </BigButton>
         </div>
         {state.status === "ready" ? (
-          <a
-            href={state.url}
-            target="_blank"
-            rel="noreferrer"
+          <button
+            type="button"
             className={cn(quietActionClass, "min-h-0 justify-center text-sm sm:text-base")}
+            onClick={() => {
+              if (state.status !== "ready") return;
+              const tab = window.open("", "_blank");
+              if (!tab) return;
+              tab.document.write(
+                `<html><body style="margin:0"><embed src="${state.dataUrl}" type="application/pdf" width="100%" height="100%"/></body></html>`,
+              );
+              tab.document.close();
+            }}
           >
             <ExternalLink className="h-4 w-4" aria-hidden />
             {t("看不到预览？在新分页打开", "Can't see the preview? Open it in a new tab")}
-          </a>
+          </button>
         ) : null}
       </DialogContent>
     </Dialog>
