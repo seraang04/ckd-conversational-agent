@@ -8,7 +8,7 @@ export const Route = createFileRoute("/")({
   head: () => ({
     links: [{ rel: "preload", as: "image", href: idleClaraStrip }],
     meta: [
-      { title: "谈谈我在意的事 · CKD values conversation" },
+      { title: "Clara" },
       {
         name: "description",
         content:
