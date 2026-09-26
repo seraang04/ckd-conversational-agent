@@ -38,6 +38,7 @@ function OpenConversation() {
       });
     } catch (error) {
       console.error("Could not open conversation", error);
+      started.current = false;
       setFailed(true);
     }
   }, [language, navigate]);
