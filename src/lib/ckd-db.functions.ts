@@ -58,7 +58,7 @@ export const updateConversationFn = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ id: z.string().uuid(), patch: sessionPatch }).parse(d))
   .handler(async ({ data }) => {
     const db = await admin();
-    const { error } = await db.from("ckd_sessions").update(data.patch).eq("id", data.id);
+    const { error } = await db.from("ckd_sessions").update(data.patch as never).eq("id", data.id);
     if (error) throw new Error("Could not update conversation");
     return { ok: true };
   });
@@ -109,7 +109,7 @@ export const saveConversationSummaryFn = createServerFn({ method: "POST" })
     const { error } = await db
       .from("ckd_summaries")
       .upsert(
-        { session_id: data.id, ...data.patch, updated_at: new Date().toISOString() },
+        { session_id: data.id, ...data.patch, updated_at: new Date().toISOString() } as never,
         { onConflict: "session_id" },
       );
     if (error) throw new Error("Could not save summary");
