@@ -1,4 +1,4 @@
-import { Download, ExternalLink, FileText } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { BigButton, LoadingLabel, Notice, quietActionClass } from "./ui";
@@ -222,19 +222,6 @@ export function ReportPreviewDialog({
             {t("关闭", "Close")}
           </BigButton>
         </div>
-        {state.status === "ready" ? (
-          <button
-            type="button"
-            className={cn(quietActionClass, "min-h-0 justify-center text-sm sm:text-base")}
-            onClick={() => {
-              if (state.status !== "ready") return;
-              window.open(state.url, "_blank");
-            }}
-          >
-            <ExternalLink className="h-4 w-4" aria-hidden />
-            {t("看不到预览？在新分页打开", "Can't see the preview? Open it in a new tab")}
-          </button>
-        ) : null}
       </DialogContent>
     </Dialog>
   );
