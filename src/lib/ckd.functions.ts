@@ -93,8 +93,8 @@ export const buildSynthesis = createServerFn({ method: "POST" })
 
     const result = await aiJson<Synthesis>(
       `${GUARDRAILS}
-Organise the conversation into short bullet points. Keep the patient's own wording wherever possible.
-- patient_priorities: what matters to the patient, from the patient's answers only.
+Organise the conversation into short bullet points for a clinical decision-support summary.
+- patient_priorities: 3–6 bullets that SYNTHESISE (do not reproduce verbatim) what matters most to the patient. Group related ideas, surface practical constraints (e.g. transport, home setup, caregiver availability), and frame each bullet as a clinically meaningful consideration — not a quote. Highlight trade-offs where the patient expressed conflicting needs. Draw only from the patient's answers.
 - caregiver_support: what the caregiver can offer, and their limits, from caregiver answers only.
 - shared_concerns: worries both raised.
 - differing_concerns: where patient and caregiver see things differently.
