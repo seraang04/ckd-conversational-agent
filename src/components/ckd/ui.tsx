@@ -21,9 +21,7 @@ export function AppHeader({ action, minimal = false }: { action?: ReactNode; min
   return (
     <header className="border-b border-border px-5 py-2">
       <div className="mx-auto flex max-w-4xl items-center justify-between gap-2">
-        {minimal ? (
-          <BrandMark className="h-10 w-10 sm:h-12 sm:w-12" />
-        ) : (
+        {minimal ? null : (
           <Link to="/" className="flex min-w-0 items-center gap-2 sm:gap-3">
             <BrandMark className="h-10 w-10 sm:h-12 sm:w-12" />
             <span className="text-base font-semibold leading-tight text-foreground sm:text-xl">

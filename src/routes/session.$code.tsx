@@ -88,13 +88,13 @@ export const Route = createFileRoute("/session/$code")({
       { rel: "preload", as: "image", href: listeningClaraStrip },
     ],
     meta: [
-      { title: "Values conversation" },
+      { title: "Clara" },
       {
         name: "description",
         content:
           "A voice-led conversation about what matters to you, ready for your next kidney consultation.",
       },
-      { property: "og:title", content: "Values conversation" },
+      { property: "og:title", content: "Clara" },
       {
         property: "og:description",
         content:
