@@ -29,6 +29,7 @@ type Props = {
 export function ClaraMascot({ state = "idle", alt, className }: Props) {
   return (
     <span
+      key={state}
       role="img"
       aria-label={alt}
       data-state={state}

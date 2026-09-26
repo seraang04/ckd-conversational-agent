@@ -106,5 +106,23 @@ test("speech cancels stale requests and keeps only one player active", async (t)
   players[2].onerror(); // A failed chunk hands the rest to the device voice.
   await sixth;
   assert.equal(players[2].playing, false);
-  assert.deepEqual(revoked, ["blob:0", "blob:1", "blob:2"]);
+
+  const playbackChanges = [];
+  const seventh = speak("First sentence. Second sentence.", "en", (playing) =>
+    playbackChanges.push(playing),
+  );
+  requests[6].resolve(response);
+  await tick();
+  assert.deepEqual(playbackChanges, [true]);
+  players[3].onended();
+  await tick();
+  assert.deepEqual(playbackChanges, [true]);
+  requests[7].resolve(response);
+  await tick();
+  assert.deepEqual(playbackChanges, [true]);
+  players[4].onended();
+  await seventh;
+  assert.deepEqual(playbackChanges, [true, false]);
+
+  assert.deepEqual(revoked, ["blob:0", "blob:1", "blob:2", "blob:3", "blob:4"]);
 });
