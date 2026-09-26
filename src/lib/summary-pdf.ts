@@ -585,6 +585,10 @@ export async function sheetPdfBlob(sheet: Sheet): Promise<Blob> {
   return new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
 }
 
+export function prefetchPdfAssets() {
+  loadFont();
+}
+
 export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

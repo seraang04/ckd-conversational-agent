@@ -20,6 +20,21 @@ type PreviewState =
   | { status: "error" }
   | { status: "ready"; blob: Blob; url: string };
 
+// Kicked off the first time this module loads (when the button first renders),
+// so pdfjs is in-flight before the user clicks anything.
+let pdfjsPromise: Promise<{ getDocument: typeof import("pdfjs-dist")["getDocument"]; GlobalWorkerOptions: typeof import("pdfjs-dist")["GlobalWorkerOptions"] }> | null = null;
+
+function getPdfjs() {
+  pdfjsPromise ??= Promise.all([
+    import("pdfjs-dist"),
+    import("pdfjs-dist/build/pdf.worker.min.mjs?url").then((m) => m.default),
+  ]).then(([pdfjs, workerUrl]) => {
+    pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+    return pdfjs;
+  });
+  return pdfjsPromise;
+}
+
 /**
  * Renders a sheet to PDF and holds it for the preview dialog. The sheet is
  * built lazily so pdf-lib and the sheet builders stay out of the main bundle.
@@ -40,7 +55,10 @@ export function usePdfPreview() {
     lastRef.current = makeSheet;
     setState({ status: "loading" });
     try {
-      const { sheetPdfBlob } = await import("@/lib/summary-pdf");
+      const [{ sheetPdfBlob }] = await Promise.all([
+        import("@/lib/summary-pdf"),
+        getPdfjs(),
+      ]);
       const blob = await sheetPdfBlob(await makeSheet());
       if (runRef.current !== run) return;
       setState({ status: "ready", blob, url: URL.createObjectURL(blob) });
@@ -72,13 +90,10 @@ function PdfCanvas({ blob }: { blob: Blob }) {
 
     (async () => {
       try {
-        const [{ getDocument, GlobalWorkerOptions }, workerUrl] = await Promise.all([
-          import("pdfjs-dist"),
-          import("pdfjs-dist/build/pdf.worker.min.mjs?url").then((m) => m.default),
+        const [{ getDocument }, arrayBuffer] = await Promise.all([
+          getPdfjs(),
+          blob.arrayBuffer(),
         ]);
-        GlobalWorkerOptions.workerSrc = workerUrl;
-
-        const arrayBuffer = await blob.arrayBuffer();
         if (cancelled) return;
 
         const pdf = await getDocument({ data: arrayBuffer }).promise;
@@ -102,7 +117,7 @@ function PdfCanvas({ blob }: { blob: Blob }) {
           container.appendChild(canvas);
 
           const ctx = canvas.getContext("2d")!;
-          await page.render({ canvasContext: ctx, viewport }).promise;
+          await page.render({ canvasContext: ctx, canvas, viewport }).promise;
         }
       } catch (err) {
         if (!cancelled) {
@@ -226,6 +241,11 @@ export function GenerateReportButton({
 }) {
   const t = useText(language);
   const preview = usePdfPreview();
+
+  useEffect(() => {
+    getPdfjs();
+    import("@/lib/summary-pdf").then(({ prefetchPdfAssets }) => prefetchPdfAssets());
+  }, []);
 
   const makeSheet = async () => {
     const { buildCaregiverSheet, buildPatientSheet, formatPreparedOn, prioritiesFromEntries } =
